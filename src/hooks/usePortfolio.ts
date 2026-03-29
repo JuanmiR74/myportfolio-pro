@@ -16,15 +16,18 @@ const generateHistoricalData = () => {
 };
 
 const defaultAssets: Asset[] = [
-  { id: '1', name: 'Apple Inc.', ticker: 'AAPL', type: 'Acciones', shares: 15, buyPrice: 150.0, currentPrice: 178.5 },
-  { id: '2', name: 'Microsoft Corp.', ticker: 'MSFT', type: 'Acciones', shares: 10, buyPrice: 280.0, currentPrice: 415.2 },
-  { id: '3', name: 'Vanguard S&P 500', ticker: 'VOO', type: 'Fondos', shares: 8, buyPrice: 380.0, currentPrice: 452.8 },
-  { id: '4', name: 'iShares MSCI World', ticker: 'IWDA', type: 'Fondos', shares: 50, buyPrice: 72.0, currentPrice: 85.3 },
+  // MyInvestor
+  { id: '1', name: 'Fidelity MSCI World', ticker: 'IE00BYX5NX33', type: 'Fondos', shares: 38.91, buyPrice: 25.70, currentPrice: 27.15 },
+  { id: '2', name: 'Vanguard Emergentes', ticker: 'IE0031786696', type: 'Fondos', shares: 5.68, buyPrice: 176.05, currentPrice: 169.80 },
+  // BBK
+  { id: '3', name: 'BGF World Healthscience', ticker: 'LU0171307068', type: 'Fondos', shares: 18.52, buyPrice: 54.00, currentPrice: 56.30 },
+  { id: '4', name: 'KBI Global Infrastructure', ticker: 'IE00BKPVHQ28', type: 'Fondos', shares: 62.11, buyPrice: 16.10, currentPrice: 16.85 },
+  { id: '5', name: 'Vontobel Commodity H (EURHDG)', ticker: 'LU0415415636', type: 'Fondos', shares: 5.49, buyPrice: 182.15, currentPrice: 178.40 },
 ];
 
 const defaultRobos: RoboAdvisor[] = [
-  { id: '1', name: 'Indexa Capital', totalValue: 12500, investedValue: 11000, lastUpdated: '2026-03-01' },
-  { id: '2', name: 'Finizens', totalValue: 8200, investedValue: 7500, lastUpdated: '2026-03-01' },
+  { id: '1', name: 'MyInvestor - Cartera Metal', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01' },
+  { id: '2', name: 'Openbank - Cartera Taipei', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01' },
 ];
 
 const loadState = (): PortfolioState => {
