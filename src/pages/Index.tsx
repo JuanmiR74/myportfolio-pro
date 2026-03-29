@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { BarChart3, Briefcase, Bot, Settings, Building2 } from 'lucide-react';
+import { BarChart3, Briefcase, Bot, Settings, Building2, ScanSearch } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import SummaryCards from '@/components/portfolio/SummaryCards';
@@ -8,6 +7,8 @@ import HistoryChart from '@/components/portfolio/HistoryChart';
 import AssetTable from '@/components/portfolio/AssetTable';
 import RoboAdvisors from '@/components/portfolio/RoboAdvisors';
 import SettingsPanel from '@/components/portfolio/SettingsPanel';
+import XRayDashboard from '@/components/portfolio/XRayDashboard';
+import FundClassificationEditor from '@/components/portfolio/FundClassificationEditor';
 
 export default function Index() {
   const p = usePortfolio();
@@ -32,6 +33,9 @@ export default function Index() {
             <TabsTrigger value="dashboard" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="h-4 w-4" /> Dashboard
             </TabsTrigger>
+            <TabsTrigger value="xray" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <ScanSearch className="h-4 w-4" /> X-Ray
+            </TabsTrigger>
             <TabsTrigger value="myinvestor" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Briefcase className="h-4 w-4" /> MyInvestor
             </TabsTrigger>
@@ -55,6 +59,11 @@ export default function Index() {
                 <HistoryChart data={p.historicalData} />
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="xray" className="space-y-4">
+            <XRayDashboard getXrayByEntity={p.getXrayByEntity} />
+            <FundClassificationEditor assets={p.assets} onUpdateClassification={p.updateAssetClassification} />
           </TabsContent>
 
           <TabsContent value="myinvestor">

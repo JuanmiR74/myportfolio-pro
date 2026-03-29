@@ -1,13 +1,17 @@
 import { useState, useRef } from 'react';
-import { Plus, Upload, Trash2, Pencil } from 'lucide-react';
-import { RoboAdvisor } from '@/types/portfolio';
+import { Plus, Upload, Trash2, Pencil, PieChart } from 'lucide-react';
+import { RoboAdvisor, AssetClass, SectorGeo, RoboAdvisorAllocation, RoboAdvisorSectorAllocation } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+
+const ASSET_CLASSES: AssetClass[] = ['Renta Variable', 'Renta Fija', 'Monetario', 'Commodities', 'Mixto'];
+const SECTORS: SectorGeo[] = ['Global', 'EEUU', 'Europa', 'Emergentes', 'Salud', 'Tecnología', 'Infraestructuras', 'Commodities', 'Otro'];
 
 interface Props {
   robos: RoboAdvisor[];
@@ -25,6 +29,9 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const [form, setForm] = useState({ name: '', totalValue: '', investedValue: '' });
   const [editId, setEditId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [allocDialogId, setAllocDialogId] = useState<string | null>(null);
+  const [allocations, setAllocations] = useState<{ assetClass: AssetClass; weight: string }[]>([]);
+  const [sectorAllocations, setSectorAllocations] = useState<{ sector: SectorGeo; weight: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
@@ -48,6 +55,28 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
     toast.success('Saldo actualizado');
   };
 
+  const openAllocDialog = (robo: RoboAdvisor) => {
+    setAllocDialogId(robo.id);
+    setAllocations(robo.allocations?.map(a => ({ assetClass: a.assetClass, weight: a.weight.toString() })) || [{ assetClass: 'Renta Variable', weight: '100' }]);
+    setSectorAllocations(robo.sectorAllocations?.map(s => ({ sector: s.sector, weight: s.weight.toString() })) || [{ sector: 'Global', weight: '100' }]);
+  };
+
+  const saveAllocations = () => {
+    if (!allocDialogId) return;
+    const ac = allocations.filter(a => parseFloat(a.weight) > 0).map(a => ({ assetClass: a.assetClass, weight: parseFloat(a.weight) }));
+    const sc = sectorAllocations.filter(s => parseFloat(s.weight) > 0).map(s => ({ sector: s.sector, weight: parseFloat(s.weight) }));
+    const acTotal = ac.reduce((s, x) => s + x.weight, 0);
+    const scTotal = sc.reduce((s, x) => s + x.weight, 0);
+    if (Math.abs(acTotal - 100) > 0.5) { toast.error(`Tipo activo: pesos suman ${acTotal.toFixed(1)}%, deben sumar 100%`); return; }
+    if (Math.abs(scTotal - 100) > 0.5) { toast.error(`Sectores: pesos suman ${scTotal.toFixed(1)}%, deben sumar 100%`); return; }
+    onUpdate(allocDialogId, {
+      allocations: ac as RoboAdvisorAllocation[],
+      sectorAllocations: sc as RoboAdvisorSectorAllocation[],
+    });
+    setAllocDialogId(null);
+    toast.success('Distribución actualizada');
+  };
+
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -59,12 +88,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
       lines.forEach(line => {
         const [name, totalValue, investedValue] = line.split(',').map(s => s.trim());
         if (name && totalValue) {
-          onAdd({
-            name,
-            totalValue: parseFloat(totalValue),
-            investedValue: parseFloat(investedValue || totalValue),
-            lastUpdated: new Date().toISOString().split('T')[0],
-          });
+          onAdd({ name, totalValue: parseFloat(totalValue), investedValue: parseFloat(investedValue || totalValue), lastUpdated: new Date().toISOString().split('T')[0] });
           count++;
         }
       });
@@ -107,6 +131,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
               <TableHead className="text-right">Valor Actual</TableHead>
               <TableHead className="text-right">Invertido</TableHead>
               <TableHead className="text-right">P/L</TableHead>
+              <TableHead>Distribución</TableHead>
               <TableHead className="text-right">Última Act.</TableHead>
               <TableHead />
             </TableRow>
@@ -121,35 +146,32 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
                   <TableCell className="text-right font-mono">
                     {isEditing ? (
                       <div className="flex items-center gap-1 justify-end">
-                        <Input
-                          type="number"
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
-                          className="w-28 h-8 text-right"
-                          autoFocus
-                          onKeyDown={e => e.key === 'Enter' && handleEditSave(r.id)}
-                        />
+                        <Input type="number" value={editValue} onChange={e => setEditValue(e.target.value)} className="w-28 h-8 text-right" autoFocus onKeyDown={e => e.key === 'Enter' && handleEditSave(r.id)} />
                         <Button size="sm" variant="outline" className="h-8" onClick={() => handleEditSave(r.id)}>OK</Button>
                         <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditId(null)}>✕</Button>
                       </div>
-                    ) : (
-                      fmt(r.totalValue)
-                    )}
+                    ) : fmt(r.totalValue)}
                   </TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.investedValue)}</TableCell>
                   <TableCell className={`text-right font-mono font-medium ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
                     {pl >= 0 ? '+' : ''}{fmt(pl)}
                   </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {r.allocations?.map(a => (
+                        <span key={a.assetClass} className="text-xs bg-secondary px-1.5 py-0.5 rounded">
+                          {a.assetClass} {a.weight}%
+                        </span>
+                      )) || <span className="text-xs text-muted-foreground">Sin definir</span>}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right text-muted-foreground">{r.lastUpdated}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => { setEditId(r.id); setEditValue(r.totalValue.toString()); }}
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        title="Editar Saldo"
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => openAllocDialog(r)} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar Distribución">
+                        <PieChart className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setEditId(r.id); setEditValue(r.totalValue.toString()); }} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar Saldo">
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} className="h-8 w-8 text-muted-foreground hover:text-loss">
@@ -162,7 +184,60 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
             })}
           </TableBody>
         </Table>
-        <p className="text-xs text-muted-foreground mt-3">Pulsa el icono ✏️ para actualizar el saldo mensualmente. CSV formato: nombre, valor_actual, valor_invertido</p>
+
+        {/* Allocation Edit Dialog */}
+        <Dialog open={!!allocDialogId} onOpenChange={open => !open && setAllocDialogId(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Distribución del Robo-Advisor</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Tipo de Activo</Label>
+                <div className="space-y-1 mt-1">
+                  {allocations.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select value={a.assetClass} onValueChange={v => {
+                        const u = [...allocations]; u[i] = { ...u[i], assetClass: v as AssetClass }; setAllocations(u);
+                      }}>
+                        <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>{ASSET_CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Input type="number" value={a.weight} onChange={e => {
+                        const u = [...allocations]; u[i] = { ...u[i], weight: e.target.value }; setAllocations(u);
+                      }} className="w-20 h-8 text-right" />
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAllocations(allocations.filter((_, j) => j !== i))}>✕</Button>
+                    </div>
+                  ))}
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAllocations([...allocations, { assetClass: 'Renta Fija', weight: '0' }])}>+ Tipo</Button>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Sector / Geografía</Label>
+                <div className="space-y-1 mt-1">
+                  {sectorAllocations.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select value={s.sector} onValueChange={v => {
+                        const u = [...sectorAllocations]; u[i] = { ...u[i], sector: v as SectorGeo }; setSectorAllocations(u);
+                      }}>
+                        <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>{SECTORS.map(sec => <SelectItem key={sec} value={sec}>{sec}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Input type="number" value={s.weight} onChange={e => {
+                        const u = [...sectorAllocations]; u[i] = { ...u[i], weight: e.target.value }; setSectorAllocations(u);
+                      }} className="w-20 h-8 text-right" />
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSectorAllocations(sectorAllocations.filter((_, j) => j !== i))}>✕</Button>
+                    </div>
+                  ))}
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSectorAllocations([...sectorAllocations, { sector: 'Otro', weight: '0' }])}>+ Sector</Button>
+                </div>
+              </div>
+              <Button onClick={saveAllocations} className="w-full">Guardar Distribución</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <p className="text-xs text-muted-foreground mt-3">✏️ Editar Saldo · 📊 Editar Distribución por tipo de activo y sector</p>
       </CardContent>
     </Card>
   );
