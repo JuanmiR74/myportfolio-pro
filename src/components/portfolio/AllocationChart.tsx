@@ -12,6 +12,7 @@ const COLORS = [
   'hsl(217, 91%, 60%)',
   'hsl(47, 96%, 53%)',
   'hsl(280, 65%, 60%)',
+  'hsl(0, 0%, 60%)',
 ];
 
 function fmt(n: number) {

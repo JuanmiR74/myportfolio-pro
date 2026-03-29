@@ -21,7 +21,7 @@ function fmt(n: number) {
 
 export default function AssetTable({ assets, onAdd, onRemove }: Props) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', ticker: '', type: 'Acciones' as AssetType, shares: '', buyPrice: '', currentPrice: '' });
+  const [form, setForm] = useState({ name: '', ticker: '', type: 'Fondos MyInvestor' as AssetType, shares: '', buyPrice: '', currentPrice: '' });
 
   const handleSubmit = () => {
     if (!form.name || !form.ticker || !form.shares || !form.buyPrice) return;
@@ -33,7 +33,7 @@ export default function AssetTable({ assets, onAdd, onRemove }: Props) {
       buyPrice: parseFloat(form.buyPrice),
       currentPrice: parseFloat(form.currentPrice || form.buyPrice),
     });
-    setForm({ name: '', ticker: '', type: 'Acciones', shares: '', buyPrice: '', currentPrice: '' });
+    setForm({ name: '', ticker: '', type: 'Fondos MyInvestor', shares: '', buyPrice: '', currentPrice: '' });
     setOpen(false);
   };
 
@@ -54,12 +54,12 @@ export default function AssetTable({ assets, onAdd, onRemove }: Props) {
                 <Label>Tipo</Label>
                 <Select value={form.type} onValueChange={v => setForm({ ...form, type: v as AssetType })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Acciones">Acciones</SelectItem>
-                    <SelectItem value="Fondos">Fondos</SelectItem>
-                    <SelectItem value="Robo-Advisors">Robo-Advisors</SelectItem>
-                    <SelectItem value="Efectivo">Efectivo</SelectItem>
-                  </SelectContent>
+                   <SelectContent>
+                     <SelectItem value="Fondos MyInvestor">Fondos MyInvestor</SelectItem>
+                     <SelectItem value="Fondos BBK">Fondos BBK</SelectItem>
+                     <SelectItem value="Acciones">Acciones</SelectItem>
+                     <SelectItem value="Efectivo">Efectivo</SelectItem>
+                   </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">

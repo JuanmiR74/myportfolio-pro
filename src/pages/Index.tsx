@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Briefcase, Bot, Settings } from 'lucide-react';
+import { BarChart3, Briefcase, Bot, Settings, Building2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import SummaryCards from '@/components/portfolio/SummaryCards';
@@ -28,12 +28,15 @@ export default function Index() {
         <SummaryCards totalValue={p.summary.totalValue} totalPL={p.summary.totalPL} totalPLPercent={p.summary.totalPLPercent} dayChange={p.summary.dayChange} />
 
         <Tabs defaultValue="dashboard" className="space-y-4">
-          <TabsList className="bg-card border border-border/50">
+          <TabsList className="bg-card border border-border/50 flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="dashboard" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="h-4 w-4" /> Dashboard
             </TabsTrigger>
-            <TabsTrigger value="assets" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Briefcase className="h-4 w-4" /> Activos
+            <TabsTrigger value="myinvestor" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Briefcase className="h-4 w-4" /> MyInvestor
+            </TabsTrigger>
+            <TabsTrigger value="bbk" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Building2 className="h-4 w-4" /> BBK
             </TabsTrigger>
             <TabsTrigger value="robos" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Bot className="h-4 w-4" /> Robo-Advisors
@@ -54,8 +57,12 @@ export default function Index() {
             </div>
           </TabsContent>
 
-          <TabsContent value="assets">
-            <AssetTable assets={p.assets} onAdd={p.addAsset} onRemove={p.removeAsset} />
+          <TabsContent value="myinvestor">
+            <AssetTable assets={p.assets.filter(a => a.type === 'Fondos MyInvestor')} onAdd={p.addAsset} onRemove={p.removeAsset} />
+          </TabsContent>
+
+          <TabsContent value="bbk">
+            <AssetTable assets={p.assets.filter(a => a.type === 'Fondos BBK')} onAdd={p.addAsset} onRemove={p.removeAsset} />
           </TabsContent>
 
           <TabsContent value="robos">
