@@ -100,7 +100,14 @@ export function usePortfolio() {
     const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
     const dayChange = totalValue * (Math.random() * 0.02 - 0.005);
 
-    return { totalValue, totalInvested, totalPL, totalPLPercent, dayChange, assetsValue, robosValue, cashBalance: state.cashBalance };
+    // XIRR approximation: single investment on a start date, current value today
+    // Using annualized return: (FV/PV)^(365/days) - 1
+    const investmentDate = new Date('2026-01-01'); // assumed start date
+    const today = new Date();
+    const daysDiff = Math.max(1, (today.getTime() - investmentDate.getTime()) / (1000 * 60 * 60 * 24));
+    const xirr = totalInvested > 0 ? (Math.pow(totalValue / totalInvested, 365 / daysDiff) - 1) * 100 : 0;
+
+    return { totalValue, totalInvested, totalPL, totalPLPercent, dayChange, assetsValue, robosValue, cashBalance: state.cashBalance, xirr };
   }, [state]);
 
   const distribution = useMemo(() => {
