@@ -21,7 +21,7 @@ function fmt(n: number) {
 
 export default function AssetTable({ assets, onAdd, onRemove }: Props) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', ticker: '', type: 'Acciones' as AssetType, shares: '', buyPrice: '', currentPrice: '' });
+  const [form, setForm] = useState({ name: '', ticker: '', type: 'Fondos MyInvestor' as AssetType, shares: '', buyPrice: '', currentPrice: '' });
 
   const handleSubmit = () => {
     if (!form.name || !form.ticker || !form.shares || !form.buyPrice) return;
