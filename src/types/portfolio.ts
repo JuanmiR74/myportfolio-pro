@@ -1,4 +1,4 @@
-export type AssetType = 'Acciones' | 'Fondos' | 'Robo-Advisors' | 'Efectivo';
+export type AssetType = 'Fondos MyInvestor' | 'Fondos BBK' | 'Acciones' | 'Efectivo';
 
 export interface Asset {
   id: string;

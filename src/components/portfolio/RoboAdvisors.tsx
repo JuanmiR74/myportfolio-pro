@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Upload, Trash2 } from 'lucide-react';
+import { Plus, Upload, Trash2, Pencil } from 'lucide-react';
 import { RoboAdvisor } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,8 @@ function fmt(n: number) {
 export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', totalValue: '', investedValue: '' });
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
@@ -35,6 +37,15 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
     });
     setForm({ name: '', totalValue: '', investedValue: '' });
     setOpen(false);
+  };
+
+  const handleEditSave = (id: string) => {
+    const val = parseFloat(editValue);
+    if (isNaN(val)) return;
+    onUpdate(id, { totalValue: val, lastUpdated: new Date().toISOString().split('T')[0] });
+    setEditId(null);
+    setEditValue('');
+    toast.success('Saldo actualizado');
   };
 
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,7 +90,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
             <DialogContent>
               <DialogHeader><DialogTitle>Añadir Robo-Advisor</DialogTitle></DialogHeader>
               <div className="grid gap-3">
-                <div><Label>Nombre</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Indexa Capital" /></div>
+                <div><Label>Nombre</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="MyInvestor - Cartera Metal" /></div>
                 <div><Label>Valor actual (€)</Label><Input type="number" value={form.totalValue} onChange={e => setForm({ ...form, totalValue: e.target.value })} /></div>
                 <div><Label>Valor invertido (€)</Label><Input type="number" value={form.investedValue} onChange={e => setForm({ ...form, investedValue: e.target.value })} /></div>
                 <Button onClick={handleSubmit}>Guardar</Button>
@@ -103,26 +114,55 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           <TableBody>
             {robos.map(r => {
               const pl = r.totalValue - r.investedValue;
+              const isEditing = editId === r.id;
               return (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell className="text-right font-mono">{fmt(r.totalValue)}</TableCell>
+                  <TableCell className="text-right font-mono">
+                    {isEditing ? (
+                      <div className="flex items-center gap-1 justify-end">
+                        <Input
+                          type="number"
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          className="w-28 h-8 text-right"
+                          autoFocus
+                          onKeyDown={e => e.key === 'Enter' && handleEditSave(r.id)}
+                        />
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => handleEditSave(r.id)}>OK</Button>
+                        <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditId(null)}>✕</Button>
+                      </div>
+                    ) : (
+                      fmt(r.totalValue)
+                    )}
+                  </TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.investedValue)}</TableCell>
                   <TableCell className={`text-right font-mono font-medium ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
                     {pl >= 0 ? '+' : ''}{fmt(pl)}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">{r.lastUpdated}</TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} className="h-8 w-8 text-muted-foreground hover:text-loss">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setEditId(r.id); setEditValue(r.totalValue.toString()); }}
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        title="Editar Saldo"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} className="h-8 w-8 text-muted-foreground hover:text-loss">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
-        <p className="text-xs text-muted-foreground mt-3">CSV formato: nombre, valor_actual, valor_invertido</p>
+        <p className="text-xs text-muted-foreground mt-3">Pulsa el icono ✏️ para actualizar el saldo mensualmente. CSV formato: nombre, valor_actual, valor_invertido</p>
       </CardContent>
     </Card>
   );

@@ -54,12 +54,12 @@ export default function AssetTable({ assets, onAdd, onRemove }: Props) {
                 <Label>Tipo</Label>
                 <Select value={form.type} onValueChange={v => setForm({ ...form, type: v as AssetType })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Acciones">Acciones</SelectItem>
-                    <SelectItem value="Fondos">Fondos</SelectItem>
-                    <SelectItem value="Robo-Advisors">Robo-Advisors</SelectItem>
-                    <SelectItem value="Efectivo">Efectivo</SelectItem>
-                  </SelectContent>
+                   <SelectContent>
+                     <SelectItem value="Fondos MyInvestor">Fondos MyInvestor</SelectItem>
+                     <SelectItem value="Fondos BBK">Fondos BBK</SelectItem>
+                     <SelectItem value="Acciones">Acciones</SelectItem>
+                     <SelectItem value="Efectivo">Efectivo</SelectItem>
+                   </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">

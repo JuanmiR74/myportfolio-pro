@@ -104,14 +104,16 @@ export function usePortfolio() {
   }, [state]);
 
   const distribution = useMemo(() => {
-    const acciones = state.assets.filter(a => a.type === 'Acciones').reduce((s, a) => s + a.shares * a.currentPrice, 0);
-    const fondos = state.assets.filter(a => a.type === 'Fondos').reduce((s, a) => s + a.shares * a.currentPrice, 0);
+    const fondosMyInvestor = state.assets.filter(a => a.type === 'Fondos MyInvestor').reduce((s, a) => s + a.shares * a.currentPrice, 0);
+    const fondosBBK = state.assets.filter(a => a.type === 'Fondos BBK').reduce((s, a) => s + a.shares * a.currentPrice, 0);
     const robos = state.roboAdvisors.reduce((s, r) => s + r.totalValue, 0);
+    const acciones = state.assets.filter(a => a.type === 'Acciones').reduce((s, a) => s + a.shares * a.currentPrice, 0);
     return [
-      { name: 'Acciones', value: acciones, fill: 'hsl(var(--chart-1))' },
-      { name: 'Fondos', value: fondos, fill: 'hsl(var(--chart-2))' },
-      { name: 'Robo-Advisors', value: robos, fill: 'hsl(var(--chart-3))' },
-      { name: 'Efectivo', value: state.cashBalance, fill: 'hsl(var(--chart-4))' },
+      { name: 'Fondos MyInvestor', value: fondosMyInvestor, fill: 'hsl(160, 84%, 39%)' },
+      { name: 'Fondos BBK', value: fondosBBK, fill: 'hsl(217, 91%, 60%)' },
+      { name: 'Robo-Advisors', value: robos, fill: 'hsl(47, 96%, 53%)' },
+      { name: 'Acciones', value: acciones, fill: 'hsl(280, 65%, 60%)' },
+      { name: 'Efectivo', value: state.cashBalance, fill: 'hsl(0, 0%, 60%)' },
     ].filter(d => d.value > 0);
   }, [state]);
 
