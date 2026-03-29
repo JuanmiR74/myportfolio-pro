@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Briefcase, Bot, Settings } from 'lucide-react';
+import { BarChart3, Briefcase, Bot, Settings, Building2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import SummaryCards from '@/components/portfolio/SummaryCards';
