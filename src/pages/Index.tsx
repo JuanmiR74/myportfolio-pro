@@ -25,7 +25,7 @@ export default function Index() {
       </header>
 
       <main className="container py-6 px-4 space-y-6">
-        <SummaryCards totalValue={p.summary.totalValue} totalPL={p.summary.totalPL} totalPLPercent={p.summary.totalPLPercent} dayChange={p.summary.dayChange} />
+        <SummaryCards totalValue={p.summary.totalValue} totalPL={p.summary.totalPL} totalPLPercent={p.summary.totalPLPercent} dayChange={p.summary.dayChange} xirr={p.summary.xirr} />
 
         <Tabs defaultValue="dashboard" className="space-y-4">
           <TabsList className="bg-card border border-border/50 flex-wrap h-auto gap-1 p-1">
