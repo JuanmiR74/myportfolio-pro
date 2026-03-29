@@ -33,7 +33,7 @@ export default function AssetTable({ assets, onAdd, onRemove }: Props) {
       buyPrice: parseFloat(form.buyPrice),
       currentPrice: parseFloat(form.currentPrice || form.buyPrice),
     });
-    setForm({ name: '', ticker: '', type: 'Acciones', shares: '', buyPrice: '', currentPrice: '' });
+    setForm({ name: '', ticker: '', type: 'Fondos MyInvestor', shares: '', buyPrice: '', currentPrice: '' });
     setOpen(false);
   };
 
