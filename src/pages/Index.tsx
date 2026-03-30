@@ -8,6 +8,7 @@ import AllocationChart from '@/components/portfolio/AllocationChart';
 import HistoryChart from '@/components/portfolio/HistoryChart';
 import FundsTable from '@/components/portfolio/FundsTable';
 import RoboAdvisors from '@/components/portfolio/RoboAdvisors';
+import RoboImporter from '@/components/portfolio/RoboImporter';
 import SettingsPanel from '@/components/portfolio/SettingsPanel';
 import XRayDashboard from '@/components/portfolio/XRayDashboard';
 import FundClassificationEditor from '@/components/portfolio/FundClassificationEditor';
