@@ -1,17 +1,22 @@
-import { BarChart3, Briefcase, Bot, Settings, Building2, ScanSearch } from 'lucide-react';
+import { useState } from 'react';
+import { BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import SummaryCards from '@/components/portfolio/SummaryCards';
 import AllocationChart from '@/components/portfolio/AllocationChart';
 import HistoryChart from '@/components/portfolio/HistoryChart';
-import AssetTable from '@/components/portfolio/AssetTable';
+import FundsTable from '@/components/portfolio/FundsTable';
 import RoboAdvisors from '@/components/portfolio/RoboAdvisors';
 import SettingsPanel from '@/components/portfolio/SettingsPanel';
 import XRayDashboard from '@/components/portfolio/XRayDashboard';
 import FundClassificationEditor from '@/components/portfolio/FundClassificationEditor';
 
+type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
+
 export default function Index() {
   const p = usePortfolio();
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
@@ -21,7 +26,23 @@ export default function Index() {
             <BarChart3 className="h-5 w-5 text-primary" />
             <h1 className="text-lg font-semibold tracking-tight">Portfolio<span className="text-primary">Pro</span></h1>
           </div>
-          <span className="text-xs text-muted-foreground hidden sm:block">Gestión de Cartera Personal</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select value={entityFilter} onValueChange={v => setEntityFilter(v as EntityFilter)}>
+                <SelectTrigger className="w-40 h-8 text-xs border-border/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Cartera Global</SelectItem>
+                  <SelectItem value="MyInvestor">MyInvestor</SelectItem>
+                  <SelectItem value="BBK">BBK</SelectItem>
+                  <SelectItem value="Robo-Advisors">Robo-Advisors</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-xs text-muted-foreground hidden sm:block">Gestión de Cartera</span>
+          </div>
         </div>
       </header>
 
@@ -33,20 +54,17 @@ export default function Index() {
             <TabsTrigger value="dashboard" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="h-4 w-4" /> Dashboard
             </TabsTrigger>
-            <TabsTrigger value="xray" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <ScanSearch className="h-4 w-4" /> X-Ray
-            </TabsTrigger>
-            <TabsTrigger value="myinvestor" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Briefcase className="h-4 w-4" /> MyInvestor
-            </TabsTrigger>
-            <TabsTrigger value="bbk" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Building2 className="h-4 w-4" /> BBK
+            <TabsTrigger value="fondos" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BookOpen className="h-4 w-4" /> Fondos
             </TabsTrigger>
             <TabsTrigger value="robos" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Bot className="h-4 w-4" /> Robo-Advisors
             </TabsTrigger>
+            <TabsTrigger value="xray" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <ScanSearch className="h-4 w-4" /> X-Ray
+            </TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Settings className="h-4 w-4" /> Config
+              <Settings className="h-4 w-4" /> Configuración
             </TabsTrigger>
           </TabsList>
 
@@ -61,21 +79,17 @@ export default function Index() {
             </div>
           </TabsContent>
 
-          <TabsContent value="xray" className="space-y-4">
-            <XRayDashboard getXrayByEntity={p.getXrayByEntity} />
-            <FundClassificationEditor assets={p.assets} onUpdateClassification={p.updateAssetClassification} />
-          </TabsContent>
-
-          <TabsContent value="myinvestor">
-            <AssetTable assets={p.assets.filter(a => a.type === 'Fondos MyInvestor')} onAdd={p.addAsset} onRemove={p.removeAsset} />
-          </TabsContent>
-
-          <TabsContent value="bbk">
-            <AssetTable assets={p.assets.filter(a => a.type === 'Fondos BBK')} onAdd={p.addAsset} onRemove={p.removeAsset} />
+          <TabsContent value="fondos" className="space-y-4">
+            <FundsTable assets={p.assets} onAdd={p.addAsset} onRemove={p.removeAsset} />
           </TabsContent>
 
           <TabsContent value="robos">
             <RoboAdvisors robos={p.roboAdvisors} onAdd={p.addRoboAdvisor} onUpdate={p.updateRoboAdvisor} onRemove={p.removeRoboAdvisor} />
+          </TabsContent>
+
+          <TabsContent value="xray" className="space-y-4">
+            <XRayDashboard getXrayByEntity={p.getXrayByEntity} entityFilter={entityFilter} />
+            <FundClassificationEditor assets={p.assets} onUpdateClassification={p.updateAssetClassification} />
           </TabsContent>
 
           <TabsContent value="settings">
