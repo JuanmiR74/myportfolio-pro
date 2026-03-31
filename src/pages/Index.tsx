@@ -85,28 +85,32 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="robos" className="space-y-4">
-            <RoboImporter onConfirmImport={(data) => {
-              // Find existing robo with same name and update, or add new
-              const existing = p.roboAdvisors.find(r => r.name === data.name);
-              if (existing) {
-                p.updateRoboAdvisor(existing.id, {
-                  totalValue: data.totalValue,
-                  investedValue: data.investedValue,
-                  lastUpdated: new Date().toISOString().split('T')[0],
-                  allocations: data.allocations as any,
-                  sectorAllocations: data.sectorAllocations as any,
-                });
-              } else {
-                p.addRoboAdvisor({
-                  name: data.name,
-                  totalValue: data.totalValue,
-                  investedValue: data.investedValue,
-                  lastUpdated: new Date().toISOString().split('T')[0],
-                  allocations: data.allocations as any,
-                  sectorAllocations: data.sectorAllocations as any,
-                });
-              }
-            }} />
+            <RoboImporter
+              existingMovements={p.roboAdvisors.find(r => r.name === 'MyInvestor - Cartera Metal')?.movements}
+              onConfirmImport={(data) => {
+                const existing = p.roboAdvisors.find(r => r.name === data.name);
+                if (existing) {
+                  p.updateRoboAdvisor(existing.id, {
+                    totalValue: data.totalValue,
+                    investedValue: data.investedValue,
+                    lastUpdated: new Date().toISOString().split('T')[0],
+                    allocations: data.allocations as any,
+                    sectorAllocations: data.sectorAllocations as any,
+                    movements: data.movements,
+                  });
+                } else {
+                  p.addRoboAdvisor({
+                    name: data.name,
+                    totalValue: data.totalValue,
+                    investedValue: data.investedValue,
+                    lastUpdated: new Date().toISOString().split('T')[0],
+                    allocations: data.allocations as any,
+                    sectorAllocations: data.sectorAllocations as any,
+                    movements: data.movements,
+                  });
+                }
+              }}
+            />
             <RoboAdvisors robos={p.roboAdvisors} onAdd={p.addRoboAdvisor} onUpdate={p.updateRoboAdvisor} onRemove={p.removeRoboAdvisor} />
           </TabsContent>
 
