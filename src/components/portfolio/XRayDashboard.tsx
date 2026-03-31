@@ -1,11 +1,23 @@
 import { useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Asset, RoboAdvisor } from '@/types/portfolio';
 
 interface DataItem {
   name: string;
   value: number;
   fill: string;
+}
+
+interface XRayAsset {
+  name: string;
+  isin: string;
+  origin: 'Fondo Individual' | 'Robo-advisor';
+  entity: string;
+  value: number;
+  weightPct: number;
 }
 
 interface Props {
@@ -14,6 +26,8 @@ interface Props {
     sectorGeo: DataItem[];
   };
   entityFilter: 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
+  assets: Asset[];
+  roboAdvisors: RoboAdvisor[];
 }
 
 function fmt(n: number) {
@@ -24,7 +38,6 @@ function fmtPct(value: number, total: number) {
   return total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
 }
 
-// Separate sector vs geography items
 const GEO_ITEMS = new Set(['Global', 'EEUU', 'Europa', 'Emergentes']);
 const SECTOR_ITEMS = new Set(['Salud', 'Tecnología', 'Infraestructuras', 'Commodities', 'Otro']);
 
@@ -53,10 +66,7 @@ function HorizontalBarSection({ title, data, subtitle }: { title: string; data: 
                   </div>
                 </div>
                 <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, background: d.fill }}
-                  />
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: d.fill }} />
                 </div>
               </div>
             );
@@ -86,9 +96,7 @@ function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>
-                  {data.map((d, i) => (
-                    <Cell key={i} fill={d.fill} />
-                  ))}
+                  {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Pie>
                 <Tooltip
                   formatter={(v: number) => [fmt(v), '']}
@@ -118,12 +126,54 @@ function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
   );
 }
 
-export default function XRayDashboard({ getXrayByEntity, entityFilter }: Props) {
+export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, roboAdvisors }: Props) {
   const { assetClass, sectorGeo } = getXrayByEntity(entityFilter);
-
-  // Split sectorGeo into geographic and sectoral
   const geographic = useMemo(() => sectorGeo.filter(d => GEO_ITEMS.has(d.name)), [sectorGeo]);
   const sectoral = useMemo(() => sectorGeo.filter(d => SECTOR_ITEMS.has(d.name) || !GEO_ITEMS.has(d.name)), [sectorGeo]);
+
+  // Build detailed asset list with origin and weight
+  const xrayAssets = useMemo(() => {
+    const items: XRayAsset[] = [];
+    const filteredAssets = entityFilter === 'all' ? assets
+      : entityFilter === 'MyInvestor' ? assets.filter(a => a.type === 'Fondos MyInvestor')
+      : entityFilter === 'BBK' ? assets.filter(a => a.type === 'Fondos BBK')
+      : [];
+
+    filteredAssets.forEach(a => {
+      items.push({
+        name: a.name,
+        isin: a.ticker,
+        origin: 'Fondo Individual',
+        entity: a.type.replace('Fondos ', ''),
+        value: a.shares * a.currentPrice,
+        weightPct: 0,
+      });
+    });
+
+    const filteredRobos = (entityFilter === 'all' || entityFilter === 'Robo-Advisors') ? roboAdvisors : [];
+    filteredRobos.forEach(r => {
+      // Check if robo has internal fund breakdown from movements
+      const fundMovements = r.movements?.filter(m => m.category === 'fondo' && m.fundName) || [];
+      const fundMap: Record<string, { isin: string; total: number }> = {};
+      fundMovements.forEach(m => {
+        const key = m.fundName!;
+        if (!fundMap[key]) fundMap[key] = { isin: m.isin || '', total: 0 };
+        fundMap[key].total += Math.abs(m.amount);
+      });
+
+      if (Object.keys(fundMap).length > 0) {
+        Object.entries(fundMap).forEach(([name, { isin, total }]) => {
+          items.push({ name, isin, origin: 'Robo-advisor', entity: r.name, value: total, weightPct: 0 });
+        });
+      } else {
+        items.push({ name: r.name, isin: '—', origin: 'Robo-advisor', entity: r.name, value: r.totalValue, weightPct: 0 });
+      }
+    });
+
+    const totalValue = items.reduce((s, i) => s + i.value, 0);
+    items.forEach(i => { i.weightPct = totalValue > 0 ? (i.value / totalValue) * 100 : 0; });
+    return items.sort((a, b) => b.value - a.value);
+  }, [assets, roboAdvisors, entityFilter]);
 
   const filterLabel = entityFilter === 'all' ? 'Cartera Global' : entityFilter;
 
@@ -134,24 +184,48 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter }: Props) 
         <p className="text-sm text-muted-foreground">Exposición ponderada real de tu patrimonio. Usa el filtro global para cambiar la vista.</p>
       </div>
 
-      {/* Asset Allocation Donut */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DonutChart title="Asset Allocation" data={assetClass} />
-
-        {/* Geographic Distribution - Horizontal Bars */}
-        <HorizontalBarSection
-          title="Distribución Geográfica"
-          data={geographic}
-          subtitle="Exposición por región/país"
-        />
-
-        {/* Sector Distribution - Horizontal Bars */}
-        <HorizontalBarSection
-          title="Distribución Sectorial"
-          data={sectoral}
-          subtitle="Exposición por sector/industria"
-        />
+        <HorizontalBarSection title="Distribución Geográfica" data={geographic} subtitle="Exposición por región/país" />
+        <HorizontalBarSection title="Distribución Sectorial" data={sectoral} subtitle="Exposición por sector/industria" />
       </div>
+
+      {/* Detailed asset table with Origin and Weight */}
+      <Card className="border-border/50 bg-card/80 backdrop-blur">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Activos Desglosados</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Activo</TableHead>
+                <TableHead className="text-xs">ISIN</TableHead>
+                <TableHead className="text-xs">Origen</TableHead>
+                <TableHead className="text-xs">Entidad</TableHead>
+                <TableHead className="text-right text-xs">Valor (€)</TableHead>
+                <TableHead className="text-right text-xs">% Peso Cartera</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {xrayAssets.map((a, i) => (
+                <TableRow key={`${a.isin}-${i}`}>
+                  <TableCell className="text-sm font-medium">{a.name}</TableCell>
+                  <TableCell className="text-xs font-mono text-muted-foreground">{a.isin}</TableCell>
+                  <TableCell>
+                    <Badge variant={a.origin === 'Fondo Individual' ? 'default' : 'secondary'} className="text-[10px]">
+                      {a.origin}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{a.entity}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{fmt(a.value)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm font-semibold">{a.weightPct.toFixed(1)}%</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

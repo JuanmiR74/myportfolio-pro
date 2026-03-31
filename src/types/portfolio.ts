@@ -30,6 +30,17 @@ export interface RoboAdvisorSectorAllocation {
   weight: number;
 }
 
+export interface RoboMovement {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  commission: number;
+  category: 'aportacion' | 'comision' | 'fondo' | 'intereses' | 'otro';
+  fundName?: string;
+  isin?: string;
+}
+
 export interface RoboAdvisor {
   id: string;
   name: string;
@@ -38,6 +49,7 @@ export interface RoboAdvisor {
   lastUpdated: string;
   allocations?: RoboAdvisorAllocation[];
   sectorAllocations?: RoboAdvisorSectorAllocation[];
+  movements?: RoboMovement[];
 }
 
 export interface PortfolioState {

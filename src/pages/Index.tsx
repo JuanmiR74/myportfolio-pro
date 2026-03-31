@@ -115,7 +115,7 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="xray" className="space-y-4">
-            <XRayDashboard getXrayByEntity={p.getXrayByEntity} entityFilter={entityFilter} />
+            <XRayDashboard getXrayByEntity={p.getXrayByEntity} entityFilter={entityFilter} assets={p.assets} roboAdvisors={p.roboAdvisors} />
             <FundClassificationEditor assets={p.assets} onUpdateClassification={p.updateAssetClassification} />
           </TabsContent>
 
