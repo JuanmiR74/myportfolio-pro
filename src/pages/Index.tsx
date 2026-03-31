@@ -81,7 +81,13 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="fondos" className="space-y-4">
-            <FundsTable assets={p.assets} onAdd={p.addAsset} onRemove={p.removeAsset} />
+            {/* AQUÍ ESTÁ EL CAMBIO: Se ha añadido onUpdate={p.updateAsset} */}
+            <FundsTable 
+              assets={p.assets} 
+              onAdd={p.addAsset} 
+              onRemove={p.removeAsset} 
+              onUpdate={p.updateAsset} 
+            />
           </TabsContent>
 
           <TabsContent value="robos" className="space-y-4">
