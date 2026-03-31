@@ -6,16 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { parseMyInvestorXLSX, computeWeightedAllocations, ImportSummary } from '@/lib/myInvestorParser';
+import { parseMyInvestorXLSX, computeWeightedAllocations, toRoboMovements, ImportSummary } from '@/lib/myInvestorParser';
+import { RoboMovement } from '@/types/portfolio';
 import { toast } from 'sonner';
 
 interface Props {
+  existingMovements?: RoboMovement[];
   onConfirmImport: (data: {
     name: string;
     totalValue: number;
     investedValue: number;
     allocations: { assetClass: string; weight: number }[];
     sectorAllocations: { sector: string; weight: number }[];
+    movements: RoboMovement[];
   }) => void;
 }
 
@@ -25,7 +28,7 @@ function fmt(n: number) {
 
 type ImportEntity = 'myinvestor' | 'openbank' | 'other';
 
-export default function RoboImporter({ onConfirmImport }: Props) {
+export default function RoboImporter({ existingMovements, onConfirmImport }: Props) {
   const [selectedEntity, setSelectedEntity] = useState<ImportEntity | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -42,14 +45,12 @@ export default function RoboImporter({ onConfirmImport }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
-
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
-
-      const result = parseMyInvestorXLSX(rows);
+      const result = parseMyInvestorXLSX(rows, existingMovements);
       setSummary(result);
       setConfirmOpen(true);
     } catch (err) {
@@ -61,9 +62,10 @@ export default function RoboImporter({ onConfirmImport }: Props) {
 
   const handleConfirm = () => {
     if (!summary) return;
-
     const { allocations, sectorAllocations } = computeWeightedAllocations(summary.fundBreakdown);
     const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
+    const newMovements = toRoboMovements(summary.movements);
+    const allMovements = [...(existingMovements || []), ...newMovements];
 
     onConfirmImport({
       name: 'MyInvestor - Cartera Metal',
@@ -71,12 +73,13 @@ export default function RoboImporter({ onConfirmImport }: Props) {
       investedValue: summary.investedValue,
       allocations: allocations as { assetClass: string; weight: number }[],
       sectorAllocations: sectorAllocations as { sector: string; weight: number }[],
+      movements: allMovements,
     });
 
     setConfirmOpen(false);
     setSummary(null);
     setSelectedEntity(null);
-    toast.success('Cartera importada y actualizada correctamente');
+    toast.success(`Importación completada: ${summary.newMovementsCount} nuevos movimientos (${summary.duplicatesSkipped} duplicados ignorados)`);
   };
 
   return (
@@ -88,7 +91,6 @@ export default function RoboImporter({ onConfirmImport }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Step 1: Entity Selector */}
         <div>
           <p className="text-sm text-muted-foreground mb-3">¿De qué entidad es el fichero que vas a subir?</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -123,33 +125,21 @@ export default function RoboImporter({ onConfirmImport }: Props) {
           </div>
         </div>
 
-        {/* Step 2: File Upload */}
         {selectedEntity === 'myinvestor' && (
           <div className="border border-dashed border-primary/40 rounded-lg p-6 text-center space-y-3 bg-primary/5">
             <Upload className="h-8 w-8 text-primary mx-auto" />
             <div>
               <p className="text-sm font-medium">Sube tu fichero de movimientos MyInvestor</p>
-              <p className="text-xs text-muted-foreground mt-1">Formatos aceptados: .xlsx, .xls, .csv</p>
+              <p className="text-xs text-muted-foreground mt-1">Importación incremental: los movimientos duplicados serán ignorados automáticamente</p>
             </div>
-            <Button
-              onClick={() => fileRef.current?.click()}
-              disabled={loading}
-              className="gap-2"
-            >
+            <Button onClick={() => fileRef.current?.click()} disabled={loading} className="gap-2">
               {loading ? 'Procesando…' : 'Seleccionar Archivo'}
               <ArrowRight className="h-4 w-4" />
             </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileUpload} />
           </div>
         )}
 
-        {/* Confirmation Dialog */}
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
@@ -158,45 +148,37 @@ export default function RoboImporter({ onConfirmImport }: Props) {
                 Resumen de Importación
               </DialogTitle>
             </DialogHeader>
-
             {summary && (
               <div className="space-y-4">
-                {/* Summary stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-primary/10 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold font-mono text-primary">{summary.countAportaciones}</p>
+                    <p className="text-2xl font-bold font-mono text-primary">{summary.newMovementsCount}</p>
+                    <p className="text-xs text-muted-foreground">Nuevos movimientos</p>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold font-mono text-muted-foreground">{summary.duplicatesSkipped}</p>
+                    <p className="text-xs text-muted-foreground">Duplicados ignorados</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-primary/10 rounded-lg p-3 text-center">
+                    <p className="text-lg font-bold font-mono text-primary">{summary.countAportaciones}</p>
                     <p className="text-xs text-muted-foreground">Aportaciones</p>
                     <p className="text-sm font-mono font-medium mt-1">{fmt(summary.totalAportaciones)}</p>
                   </div>
                   <div className="bg-loss/10 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold font-mono text-loss">{summary.countComisiones}</p>
+                    <p className="text-lg font-bold font-mono text-loss">{summary.countComisiones}</p>
                     <p className="text-xs text-muted-foreground">Comisiones</p>
                     <p className="text-sm font-mono font-medium mt-1">-{fmt(summary.totalComisiones)}</p>
                   </div>
                 </div>
-
-                <div className="bg-secondary/50 rounded-lg p-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Inversión neta</span>
-                    <span className="font-mono font-medium">{fmt(summary.investedValue)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-muted-foreground">Intereses efectivo</span>
-                    <span className="font-mono font-medium">{fmt(summary.totalIntereses)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-muted-foreground">Saldo efectivo</span>
-                    <span className="font-mono font-medium">{fmt(summary.currentCash)}</span>
-                  </div>
-                </div>
-
-                {/* Fund breakdown */}
                 <div>
-                  <p className="text-sm font-medium mb-2">Fondos detectados (composición interna)</p>
+                  <p className="text-sm font-medium mb-2">Fondos detectados (con ISIN)</p>
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-xs">Fondo</TableHead>
+                        <TableHead className="text-xs">ISIN</TableHead>
                         <TableHead className="text-right text-xs">Invertido</TableHead>
                         <TableHead className="text-right text-xs">Peso</TableHead>
                       </TableRow>
@@ -205,6 +187,7 @@ export default function RoboImporter({ onConfirmImport }: Props) {
                       {summary.fundBreakdown.map(f => (
                         <TableRow key={f.name}>
                           <TableCell className="text-xs font-medium">{f.name}</TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{f.isin || '—'}</TableCell>
                           <TableCell className="text-right font-mono text-xs">{fmt(f.totalInvested)}</TableCell>
                           <TableCell className="text-right font-mono text-xs font-medium">{f.weight.toFixed(1)}%</TableCell>
                         </TableRow>
@@ -212,18 +195,15 @@ export default function RoboImporter({ onConfirmImport }: Props) {
                     </TableBody>
                   </Table>
                 </div>
-
                 <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-lg p-3">
                   <AlertCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
-                    Se han detectado <strong>{summary.countAportaciones} aportaciones</strong> y{' '}
-                    <strong>{summary.countComisiones} comisiones</strong>. Tu cartera se actualizará con estos datos.
-                    Los pesos se enviarán a la pestaña X-Ray para el análisis de exposición.
+                    Se añadirán <strong>{summary.newMovementsCount} nuevos movimientos</strong> al historial existente.
+                    Los pesos y ISINs se enviarán al X-Ray para el análisis de exposición.
                   </p>
                 </div>
               </div>
             )}
-
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancelar</Button>
               <Button onClick={handleConfirm} className="gap-1.5">

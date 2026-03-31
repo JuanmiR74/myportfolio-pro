@@ -1,11 +1,13 @@
-import { RoboAdvisorAllocation, RoboAdvisorSectorAllocation } from '@/types/portfolio';
+import { RoboAdvisorAllocation, RoboAdvisorSectorAllocation, RoboMovement } from '@/types/portfolio';
 
 export interface ParsedMovement {
   date: string;
   description: string;
   amount: number;
+  commission: number;
   category: 'aportacion' | 'comision' | 'fondo' | 'intereses' | 'otro';
   fundName?: string;
+  isin?: string;
 }
 
 export interface ImportSummary {
@@ -14,21 +16,23 @@ export interface ImportSummary {
   totalComisiones: number;
   countComisiones: number;
   totalIntereses: number;
-  fundBreakdown: { name: string; totalInvested: number; weight: number }[];
+  fundBreakdown: { name: string; isin: string; totalInvested: number; weight: number }[];
   movements: ParsedMovement[];
   investedValue: number;
   currentCash: number;
+  newMovementsCount: number;
+  duplicatesSkipped: number;
 }
 
-// Fund name normalization and sector mapping
-const FUND_PATTERNS: { pattern: RegExp; key: string; label: string }[] = [
-  { pattern: /S.?&?.?P.?500|US 500|ISHARES US INDEX/i, key: 'SP500', label: 'S&P 500 / US Index' },
-  { pattern: /MSCI EUROPE|FIDELITY MSCI EUROPE/i, key: 'EUROPE', label: 'MSCI Europe' },
-  { pattern: /EMRG|EMERGING/i, key: 'EMERGING', label: 'Mercados Emergentes' },
-  { pattern: /JAPAN/i, key: 'JAPAN', label: 'MSCI Japan' },
-  { pattern: /PACFC|PACIFIC/i, key: 'PACIFIC', label: 'Asia-Pacífico ex Japan' },
-  { pattern: /VANGUARD US 500|VANGUARD US/i, key: 'VANGUARD_US', label: 'Vanguard US 500' },
-  { pattern: /GLB ENH|DEVELOPED WORLD/i, key: 'GLOBAL', label: 'Global / Developed World' },
+// Fund name normalization, sector mapping, and ISIN lookup
+const FUND_PATTERNS: { pattern: RegExp; key: string; label: string; isin: string }[] = [
+  { pattern: /S.?&?.?P.?500|US 500|ISHARES US INDEX/i, key: 'SP500', label: 'S&P 500 / US Index', isin: 'IE0032620787' },
+  { pattern: /VANGUARD US 500|VANGUARD US/i, key: 'VANGUARD_US', label: 'Vanguard US 500', isin: 'IE0032620787' },
+  { pattern: /MSCI EUROPE|FIDELITY MSCI EUROPE/i, key: 'EUROPE', label: 'MSCI Europe', isin: 'LU0389812347' },
+  { pattern: /EMRG|EMERGING/i, key: 'EMERGING', label: 'Mercados Emergentes', isin: 'IE00B3VVXG84' },
+  { pattern: /JAPAN/i, key: 'JAPAN', label: 'MSCI Japan', isin: 'LU0389812693' },
+  { pattern: /PACFC|PACIFIC/i, key: 'PACIFIC', label: 'Asia-Pacífico ex Japan', isin: '' },
+  { pattern: /GLB ENH|DEVELOPED WORLD/i, key: 'GLOBAL', label: 'Global / Developed World', isin: '' },
 ];
 
 export const FUND_SECTOR_MAP: Record<string, { allocations: RoboAdvisorAllocation[]; sectorAllocations: RoboAdvisorSectorAllocation[] }> = {
@@ -71,17 +75,16 @@ function classifyMovement(desc: string): ParsedMovement['category'] {
   if (/APORTACION/i.test(d)) return 'aportacion';
   if (/COM\.\s*GESTION|COM\.\s*CUSTODIA|IVA COM/i.test(d)) return 'comision';
   if (/PERIODO|EFECTIVO-EUR/i.test(d)) return 'intereses';
-  // Check if it matches any fund pattern
   for (const fp of FUND_PATTERNS) {
     if (fp.pattern.test(d)) return 'fondo';
   }
   return 'otro';
 }
 
-function identifyFund(desc: string): { key: string; label: string } | null {
+function identifyFund(desc: string): { key: string; label: string; isin: string } | null {
   const d = desc.toUpperCase();
   for (const fp of FUND_PATTERNS) {
-    if (fp.pattern.test(d)) return { key: fp.key, label: fp.label };
+    if (fp.pattern.test(d)) return { key: fp.key, label: fp.label, isin: fp.isin };
   }
   return null;
 }
@@ -89,14 +92,29 @@ function identifyFund(desc: string): { key: string; label: string } | null {
 function parseAmount(raw: unknown): number {
   if (typeof raw === 'number') return raw;
   if (typeof raw === 'string') {
-    // Handle "300.00€" or "-0.05€" or "300,00€"
     const cleaned = raw.replace(/[€\s]/g, '').replace(',', '.');
     return parseFloat(cleaned) || 0;
   }
   return 0;
 }
 
-export function parseMyInvestorXLSX(rows: unknown[][]): ImportSummary {
+// Generate a dedup key from date+description+amount
+function movementKey(date: string, desc: string, amount: number): string {
+  return `${date}|${desc.trim().toUpperCase()}|${amount.toFixed(2)}`;
+}
+
+export function parseMyInvestorXLSX(
+  rows: unknown[][],
+  existingMovements?: RoboMovement[]
+): ImportSummary {
+  // Build set of existing movement keys for dedup
+  const existingKeys = new Set<string>();
+  if (existingMovements) {
+    for (const m of existingMovements) {
+      existingKeys.add(movementKey(m.date, m.description, m.amount));
+    }
+  }
+
   // Find header row
   let headerIdx = -1;
   for (let i = 0; i < rows.length; i++) {
@@ -112,15 +130,15 @@ export function parseMyInvestorXLSX(rows: unknown[][]): ImportSummary {
   }
 
   const movements: ParsedMovement[] = [];
-  const fundTotals: Record<string, { label: string; total: number }> = {};
+  const fundTotals: Record<string, { label: string; isin: string; total: number }> = {};
   let totalAportaciones = 0;
   let countAportaciones = 0;
   let totalComisiones = 0;
   let countComisiones = 0;
   let totalIntereses = 0;
   let currentCash = 0;
+  let duplicatesSkipped = 0;
 
-  // Parse data rows after header
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length < 5) continue;
@@ -131,25 +149,33 @@ export function parseMyInvestorXLSX(rows: unknown[][]): ImportSummary {
 
     if (!desc || desc.trim() === '') continue;
 
-    // Try to parse date
     let dateStr = '';
     if (typeof dateRaw === 'number') {
-      // Excel serial date
       const d = new Date((dateRaw - 25569) * 86400000);
       dateStr = d.toISOString().split('T')[0];
     } else if (typeof dateRaw === 'string') {
       dateStr = dateRaw;
     }
 
+    // Dedup check
+    const key = movementKey(dateStr, desc, amount);
+    if (existingKeys.has(key)) {
+      duplicatesSkipped++;
+      continue;
+    }
+
     const category = classifyMovement(desc);
     const fund = category === 'fondo' ? identifyFund(desc) : null;
+    const isCommission = category === 'comision';
 
     movements.push({
       date: dateStr,
       description: desc,
       amount,
+      commission: isCommission ? Math.abs(amount) : 0,
       category,
       fundName: fund?.label,
+      isin: fund?.isin,
     });
 
     switch (category) {
@@ -166,24 +192,23 @@ export function parseMyInvestorXLSX(rows: unknown[][]): ImportSummary {
         break;
       case 'fondo':
         if (fund) {
-          if (!fundTotals[fund.key]) fundTotals[fund.key] = { label: fund.label, total: 0 };
+          if (!fundTotals[fund.key]) fundTotals[fund.key] = { label: fund.label, isin: fund.isin, total: 0 };
           fundTotals[fund.key].total += Math.abs(amount);
         }
         break;
     }
   }
 
-  // Get last saldo from last row
   const lastRow = rows[rows.length - 1];
   if (lastRow && lastRow.length >= 6) {
     currentCash = parseAmount(lastRow[5]);
   }
 
-  // Calculate fund weights
   const totalFundInvested = Object.values(fundTotals).reduce((s, f) => s + f.total, 0);
   const fundBreakdown = Object.entries(fundTotals)
-    .map(([key, { label, total }]) => ({
+    .map(([, { label, isin, total }]) => ({
       name: label,
+      isin,
       totalInvested: total,
       weight: totalFundInvested > 0 ? (total / totalFundInvested) * 100 : 0,
     }))
@@ -199,7 +224,23 @@ export function parseMyInvestorXLSX(rows: unknown[][]): ImportSummary {
     movements,
     investedValue: totalAportaciones,
     currentCash,
+    newMovementsCount: movements.length,
+    duplicatesSkipped,
   };
+}
+
+// Convert parsed movements to RoboMovement[]
+export function toRoboMovements(parsed: ParsedMovement[]): RoboMovement[] {
+  return parsed.map(m => ({
+    id: crypto.randomUUID(),
+    date: m.date,
+    description: m.description,
+    amount: m.amount,
+    commission: m.commission,
+    category: m.category,
+    fundName: m.fundName,
+    isin: m.isin,
+  }));
 }
 
 // Compute weighted allocations from fund breakdown
@@ -210,7 +251,6 @@ export function computeWeightedAllocations(fundBreakdown: ImportSummary['fundBre
   const acTotals: Record<string, number> = {};
   const secTotals: Record<string, number> = {};
 
-  // Reverse lookup fund key from label
   const labelToKey: Record<string, string> = {};
   for (const fp of FUND_PATTERNS) {
     labelToKey[fp.label] = fp.key;
@@ -234,7 +274,6 @@ export function computeWeightedAllocations(fundBreakdown: ImportSummary['fundBre
     }
   }
 
-  // Normalize to 100
   const acTotal = Object.values(acTotals).reduce((s, v) => s + v, 0);
   const secTotal = Object.values(secTotals).reduce((s, v) => s + v, 0);
 
