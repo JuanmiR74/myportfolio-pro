@@ -168,3 +168,4 @@ export default function FundsTable({ assets, onAdd, onRemove }: Props) {
     </Card>
   );
 }
+
