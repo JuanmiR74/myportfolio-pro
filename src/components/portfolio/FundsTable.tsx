@@ -13,7 +13,7 @@ interface Props {
   assets: Asset[];
   onAdd: (asset: Omit<Asset, 'id'>) => void;
   onRemove: (id: string) => void;
-  onUpdate: (id: string, updates: Partial<Asset>) => void; // Añadido para edición
+  onUpdate: (id: string, updates: Partial<Asset>) => void;
 }
 
 function fmt(n: number) {
@@ -78,7 +78,7 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
       <CardHeader className="flex flex-row items-center justify-between pb-2 flex-wrap gap-2">
-        <CardTitle className="text-base">Fondos de Inversión</CardTitle>
+        <CardTitle className="text-base font-semibold">Fondos de Inversión</CardTitle>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <Filter className="h-4 w-4 text-muted-foreground" />
@@ -114,83 +114,97 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Participaciones</Label><Input type="number" value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} /></div>
-                  <div><Label>Precio compra (€)</Label><Input type="number" value={form.buyPrice} onChange={e => setForm({ ...form, buyPrice: e.target.value })} /></div>
+                  <div><Label>Precio medio compra (€)</Label><Input type="number" value={form.buyPrice} onChange={e => setForm({ ...form, buyPrice: e.target.value })} /></div>
                 </div>
-                <div><Label>Precio actual (€) (opcional)</Label><Input type="number" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} /></div>
-                <Button onClick={handleSubmit}>Guardar</Button>
+                <div><Label>Precio actual (€)</Label><Input type="number" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} /></div>
+                <Button onClick={handleSubmit}>Guardar Fondo</Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <div className="flex items-center gap-4 mb-3 text-sm">
-          <span className="text-muted-foreground">{filtered.length} fondo(s)</span>
-          <span className="font-mono font-medium">{fmt(totalValue)}</span>
-          <span className={`font-mono font-medium ${totalPL >= 0 ? 'text-profit' : 'text-loss'}`}>
-            {totalPL >= 0 ? '+' : ''}{fmt(totalPL)}
-          </span>
+        <div className="flex items-center gap-4 mb-4 text-sm border-b pb-3 border-border/50">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-muted-foreground uppercase">Total Cartera</span>
+            <span className="font-mono font-bold text-lg">{fmt(totalValue)}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-muted-foreground uppercase">Plusvalía Total</span>
+            <span className={`font-mono font-bold text-lg ${totalPL >= 0 ? 'text-profit' : 'text-loss'}`}>
+              {totalPL >= 0 ? '+' : ''}{fmt(totalPL)}
+            </span>
+          </div>
         </div>
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>ISIN</TableHead>
-              <TableHead>Entidad</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[250px]">Nombre / ISIN</TableHead>
               <TableHead className="text-right">Uds.</TableHead>
-              <TableHead className="text-right">P. Compra</TableHead>
+              <TableHead className="text-right">Aportado</TableHead>
               <TableHead className="text-right">P. Actual</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead className="text-right">P/L</TableHead>
+              <TableHead className="text-right">Valor Act.</TableHead>
+              <TableHead className="text-right">Rentabilidad</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map(a => {
               const isEditing = editingId === a.id;
-              const value = (isEditing ? parseFloat(editForm.shares) * parseFloat(editForm.currentPrice) : a.shares * a.currentPrice) || 0;
-              const cost = (isEditing ? parseFloat(editForm.shares) * parseFloat(editForm.buyPrice) : a.shares * a.buyPrice) || 0;
-              const pl = value - cost;
-              const plPct = cost > 0 ? (pl / cost) * 100 : 0;
-              
+              const shares = isEditing ? parseFloat(editForm.shares) : a.shares;
+              const buyPrice = isEditing ? parseFloat(editForm.buyPrice) : a.buyPrice;
+              const currentPrice = isEditing ? parseFloat(editForm.currentPrice) : a.currentPrice;
+
+              const invested = (shares * buyPrice) || 0;
+              const currentVal = (shares * currentPrice) || 0;
+              const profitEuro = currentVal - invested;
+              const profitPct = invested > 0 ? (profitEuro / invested) * 100 : 0;
+
               return (
                 <TableRow key={a.id} className={isEditing ? "bg-muted/30" : ""}>
-                  <TableCell className="font-medium">{a.name}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{a.ticker}</TableCell>
                   <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      a.type === 'Fondos MyInvestor' 
-                        ? 'bg-primary/15 text-primary' 
-                        : 'bg-chart-2/15 text-chart-2'
-                    }`}>
-                      {getEntity(a.type)}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-sm line-clamp-1">{a.name}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">{a.ticker}</span>
+                    </div>
                   </TableCell>
                   
-                  {/* Celdas Editables */}
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="text-right font-mono text-sm">
                     {isEditing ? (
-                      <Input className="h-7 w-20 text-right font-mono text-xs ml-auto" type="number" value={editForm.shares} onChange={e => setEditForm({...editForm, shares: e.target.value})} />
-                    ) : a.shares}
+                      <Input className="h-7 w-20 text-right text-xs ml-auto" type="number" value={editForm.shares} onChange={e => setEditForm({...editForm, shares: e.target.value})} />
+                    ) : a.shares.toFixed(2)}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-xs">
+
+                  {/* Campo Aportaciones (Calculado: Uds * P. Compra) */}
+                  <TableCell className="text-right font-mono text-sm">
                     {isEditing ? (
-                      <Input className="h-7 w-24 text-right font-mono text-xs ml-auto" type="number" value={editForm.buyPrice} onChange={e => setEditForm({...editForm, buyPrice: e.target.value})} />
-                    ) : fmt(a.buyPrice)}
+                      <div className="flex flex-col items-end gap-1">
+                        <Input className="h-7 w-24 text-right text-xs ml-auto" type="number" value={editForm.buyPrice} onChange={e => setEditForm({...editForm, buyPrice: e.target.value})} />
+                        <span className="text-[9px] text-muted-foreground">P. Medio</span>
+                      </div>
+                    ) : fmt(invested)}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-xs">
+
+                  <TableCell className="text-right font-mono text-sm">
                     {isEditing ? (
-                      <Input className="h-7 w-24 text-right font-mono text-xs ml-auto" type="number" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: e.target.value})} />
-                    ) : fmt(a.currentPrice)}
+                      <Input className="h-7 w-24 text-right text-xs ml-auto" type="number" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: e.target.value})} />
+                    ) : fmt(currentPrice)}
                   </TableCell>
                   
-                  <TableCell className="text-right font-mono font-medium">{fmt(value)}</TableCell>
-                  <TableCell className={`text-right font-mono font-medium ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {pl >= 0 ? '+' : ''}{fmt(pl)} ({plPct.toFixed(1)}%)
+                  <TableCell className="text-right font-mono font-semibold text-sm">
+                    {fmt(currentVal)}
+                  </TableCell>
+
+                  {/* Rentabilidad calculada sobre el total aportado */}
+                  <TableCell className={`text-right font-mono font-bold text-sm ${profitEuro >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    <div className="flex flex-col items-end">
+                      <span>{profitEuro >= 0 ? '+' : ''}{fmt(profitEuro)}</span>
+                      <span className="text-[10px] font-medium">{profitPct.toFixed(2)}%</span>
+                    </div>
                   </TableCell>
                   
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 justify-end">
                       {isEditing ? (
                         <>
                           <Button variant="ghost" size="icon" onClick={() => handleSaveEdit(a.id)} className="h-7 w-7 text-profit hover:bg-profit/10">
@@ -216,7 +230,7 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
               );
             })}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Sin fondos. Pulsa "Añadir" para empezar.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Sin fondos registrados.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -224,4 +238,3 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
     </Card>
   );
 }
-
