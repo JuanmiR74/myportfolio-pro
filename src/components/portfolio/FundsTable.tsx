@@ -40,7 +40,7 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
       ticker: form.ticker.toUpperCase(),
       type: form.type,
       shares: parseFloat(form.shares),
-      buyPrice: parseFloat(form.buyPrice), // Importe ABSOLUTO aportado
+      buyPrice: parseFloat(form.buyPrice),
       currentPrice: parseFloat(form.currentPrice || "0"),
     });
     setForm({ name: '', ticker: '', type: 'Fondos MyInvestor', shares: '', buyPrice: '', currentPrice: '' });
@@ -65,20 +65,13 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
     setEditingId(null);
   };
 
-  const getEntity = (type: AssetType) => {
-    if (type === 'Fondos MyInvestor') return 'MyInvestor';
-    if (type === 'Fondos BBK') return 'BBK';
-    return type;
+  const getEntityName = (type: AssetType) => {
+    return type === 'Fondos MyInvestor' ? 'MyInvestor' : 'BBK';
   };
-
-  // CÁLCULOS TOTALES CORREGIDOS
-  const totalValue = filtered.reduce((s, a) => s + (a.shares * a.currentPrice), 0);
-  const totalInvested = filtered.reduce((s, a) => s + a.buyPrice, 0); // Suma directa de importes absolutos
-  const totalPL = totalValue - totalInvested;
 
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
-      <CardHeader className="flex flex-row items-center justify-between pb-2 flex-wrap gap-2">
+      <CardHeader className="flex flex-row items-center justify-between pb-4 flex-wrap gap-2">
         <CardTitle className="text-base font-semibold">Fondos de Inversión</CardTitle>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
@@ -101,8 +94,8 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
             <DialogContent>
               <DialogHeader><DialogTitle>Añadir Fondo</DialogTitle></DialogHeader>
               <div className="grid gap-3">
-                <div><Label>Nombre</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej: Fidelity MSCI World" /></div>
-                <div><Label>ISIN / Ticker</Label><Input value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} placeholder="Ej: IE00BYX5NX33" /></div>
+                <div><Label>Nombre</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
+                <div><Label>ISIN / Ticker</Label><Input value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} /></div>
                 <div>
                   <Label>Entidad</Label>
                   <Select value={form.type} onValueChange={v => setForm({ ...form, type: v as AssetType })}>
@@ -114,122 +107,79 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Total Invertido (€)</Label><Input type="number" value={form.buyPrice} onChange={e => setForm({ ...form, buyPrice: e.target.value })} placeholder="Ej: 5000" /></div>
-                  <div><Label>Nº Participaciones</Label><Input type="number" value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} /></div>
+                  <div><Label>Inversión Total (€)</Label><Input type="number" value={form.buyPrice} onChange={e => setForm({ ...form, buyPrice: e.target.value })} /></div>
+                  <div><Label>Participaciones</Label><Input type="number" value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} /></div>
                 </div>
-                <div><Label>Precio Actual Participación (€)</Label><Input type="number" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} /></div>
+                <div><Label>Precio Actual Cuota (€)</Label><Input type="number" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} /></div>
                 <Button onClick={handleSubmit}>Guardar Fondo</Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <div className="flex items-center gap-4 mb-4 text-sm border-b pb-3 border-border/50">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground uppercase">Inversión Real</span>
-            <span className="font-mono font-bold text-lg">{fmt(totalInvested)}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground uppercase">Valor Actual</span>
-            <span className="font-mono font-bold text-lg">{fmt(totalValue)}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground uppercase">Plusvalía</span>
-            <span className={`font-mono font-bold text-lg ${totalPL >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {totalPL >= 0 ? '+' : ''}{fmt(totalPL)}
-            </span>
-          </div>
-        </div>
+      <CardContent>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[220px]">Fondo / ISIN</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Entidad</TableHead>
               <TableHead className="text-right">Aportado</TableHead>
               <TableHead className="text-right">Uds.</TableHead>
-              <TableHead className="text-right">Precio Act.</TableHead>
+              <TableHead className="text-right">P. Actual</TableHead>
               <TableHead className="text-right">Valor Act.</TableHead>
-              <TableHead className="text-right">Rentabilidad</TableHead>
+              <TableHead className="text-right">P/L (€)</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map(a => {
               const isEditing = editingId === a.id;
-              
-              // LÓGICA DE VALORES POR FILA
               const invested = isEditing ? parseFloat(editForm.buyPrice) : a.buyPrice;
               const shares = isEditing ? parseFloat(editForm.shares) : a.shares;
               const currentPrice = isEditing ? parseFloat(editForm.currentPrice) : a.currentPrice;
-              
               const currentVal = (shares * currentPrice) || 0;
               const profitEuro = currentVal - invested;
-              const profitPct = invested > 0 ? (profitEuro / invested) * 100 : 0;
 
               return (
                 <TableRow key={a.id} className={isEditing ? "bg-muted/30" : ""}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-sm line-clamp-1">{a.name}</span>
-                      <span className="text-[10px] font-mono text-muted-foreground uppercase">{a.ticker}</span>
-                    </div>
-                  </TableCell>
+                  <TableCell className="font-medium text-sm">{a.name}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{getEntityName(a.type)}</TableCell>
                   
-                  {/* APORTADO: Valor Absoluto */}
                   <TableCell className="text-right font-mono text-sm">
                     {isEditing ? (
-                      <Input className="h-7 w-24 text-right text-xs ml-auto font-bold" type="number" value={editForm.buyPrice} onChange={e => setEditForm({...editForm, buyPrice: e.target.value})} />
-                    ) : (
-                      <span className="font-semibold">{fmt(invested)}</span>
-                    )}
+                      <Input className="h-7 w-24 text-right text-xs ml-auto" type="number" value={editForm.buyPrice} onChange={e => setEditForm({...editForm, buyPrice: e.target.value})} />
+                    ) : fmt(invested)}
                   </TableCell>
 
-                  {/* UNIDADES */}
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                  <TableCell className="text-right font-mono text-xs">
                     {isEditing ? (
                       <Input className="h-7 w-20 text-right text-xs ml-auto" type="number" value={editForm.shares} onChange={e => setEditForm({...editForm, shares: e.target.value})} />
                     ) : a.shares.toFixed(4)}
                   </TableCell>
 
-                  {/* PRECIO ACTUAL */}
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                  <TableCell className="text-right font-mono text-xs">
                     {isEditing ? (
-                      <Input className="h-7 w-24 text-right text-xs ml-auto" type="number" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: e.target.value})} />
+                      <Input className="h-7 w-20 text-right text-xs ml-auto" type="number" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: e.target.value})} />
                     ) : fmt(currentPrice)}
                   </TableCell>
                   
-                  {/* VALOR ACTUAL (Uds * Precio) */}
-                  <TableCell className="text-right font-mono font-semibold text-sm">
-                    {fmt(currentVal)}
-                  </TableCell>
+                  <TableCell className="text-right font-mono font-semibold text-sm">{fmt(currentVal)}</TableCell>
 
-                  {/* RENTABILIDAD SOBRE APORTADO */}
                   <TableCell className={`text-right font-mono font-bold text-sm ${profitEuro >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    <div className="flex flex-col items-end">
-                      <span>{profitEuro >= 0 ? '+' : ''}{fmt(profitEuro)}</span>
-                      <span className="text-[10px] opacity-80">{profitPct.toFixed(2)}%</span>
-                    </div>
+                    {profitEuro >= 0 ? '+' : ''}{fmt(profitEuro)}
                   </TableCell>
                   
                   <TableCell>
                     <div className="flex items-center gap-1 justify-end">
                       {isEditing ? (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => handleSaveEdit(a.id)} className="h-7 w-7 text-profit">
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setEditingId(null)} className="h-7 w-7 text-muted-foreground">
-                            <X className="h-4 w-4" />
-                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleSaveEdit(a.id)} className="h-7 w-7 text-profit"><Check className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => setEditingId(null)} className="h-7 w-7 text-muted-foreground"><X className="h-4 w-4" /></Button>
                         </>
                       ) : (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => startEditing(a)} className="h-7 w-7 text-muted-foreground hover:text-primary">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => onRemove(a.id)} className="h-7 w-7 text-muted-foreground hover:text-loss">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => startEditing(a)} className="h-7 w-7 text-muted-foreground hover:text-primary"><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => onRemove(a.id)} className="h-7 w-7 text-muted-foreground hover:text-loss"><Trash2 className="h-3.5 w-3.5" /></Button>
                         </>
                       )}
                     </div>
