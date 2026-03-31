@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter } from 'lucide-react';
+import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
@@ -87,6 +87,7 @@ export default function Index() {
           <TabsContent value="robos" className="space-y-4">
             <RoboImporter
               existingMovements={p.roboAdvisors.find(r => r.name === 'MyInvestor - Cartera Metal')?.movements}
+              existingAssets={p.assets}
               onConfirmImport={(data) => {
                 const existing = p.roboAdvisors.find(r => r.name === data.name);
                 if (existing) {
@@ -109,6 +110,21 @@ export default function Index() {
                     movements: data.movements,
                   });
                 }
+              }}
+              onConfirmOpenbankImport={(updatedAssets) => {
+                updatedAssets.forEach(asset => {
+                  const existing = p.assets.find(a => a.ticker === asset.ticker);
+                  if (existing) {
+                    p.updateAsset(existing.id, {
+                      shares: asset.shares,
+                      currentPrice: asset.currentPrice,
+                      buyPrice: asset.buyPrice,
+                      classification: asset.classification,
+                    });
+                  } else {
+                    p.addAsset(asset);
+                  }
+                });
               }}
             />
             <RoboAdvisors robos={p.roboAdvisors} onAdd={p.addRoboAdvisor} onUpdate={p.updateRoboAdvisor} onRemove={p.removeRoboAdvisor} />
