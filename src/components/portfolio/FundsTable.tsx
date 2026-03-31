@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Plus, Filter } from 'lucide-react';
+import { Trash2, Plus, Filter, Pencil, Check, X } from 'lucide-react';
 import { Asset, AssetType } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ interface Props {
   assets: Asset[];
   onAdd: (asset: Omit<Asset, 'id'>) => void;
   onRemove: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<Asset>) => void; // Añadido para edición
 }
 
 function fmt(n: number) {
@@ -21,9 +22,11 @@ function fmt(n: number) {
 
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK';
 
-export default function FundsTable({ assets, onAdd, onRemove }: Props) {
+export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props) {
   const [open, setOpen] = useState(false);
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{shares: string, buyPrice: string, currentPrice: string}>({ shares: '', buyPrice: '', currentPrice: '' });
   const [form, setForm] = useState({ name: '', ticker: '', type: 'Fondos MyInvestor' as AssetType, shares: '', buyPrice: '', currentPrice: '' });
 
   const filtered = entityFilter === 'all'
@@ -42,6 +45,24 @@ export default function FundsTable({ assets, onAdd, onRemove }: Props) {
     });
     setForm({ name: '', ticker: '', type: 'Fondos MyInvestor', shares: '', buyPrice: '', currentPrice: '' });
     setOpen(false);
+  };
+
+  const startEditing = (a: Asset) => {
+    setEditingId(a.id);
+    setEditForm({
+      shares: a.shares.toString(),
+      buyPrice: a.buyPrice.toString(),
+      currentPrice: a.currentPrice.toString()
+    });
+  };
+
+  const handleSaveEdit = (id: string) => {
+    onUpdate(id, {
+      shares: parseFloat(editForm.shares),
+      buyPrice: parseFloat(editForm.buyPrice),
+      currentPrice: parseFloat(editForm.currentPrice)
+    });
+    setEditingId(null);
   };
 
   const getEntity = (type: AssetType) => {
@@ -103,7 +124,6 @@ export default function FundsTable({ assets, onAdd, onRemove }: Props) {
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        {/* Summary bar */}
         <div className="flex items-center gap-4 mb-3 text-sm">
           <span className="text-muted-foreground">{filtered.length} fondo(s)</span>
           <span className="font-mono font-medium">{fmt(totalValue)}</span>
@@ -127,12 +147,14 @@ export default function FundsTable({ assets, onAdd, onRemove }: Props) {
           </TableHeader>
           <TableBody>
             {filtered.map(a => {
-              const value = a.shares * a.currentPrice;
-              const cost = a.shares * a.buyPrice;
+              const isEditing = editingId === a.id;
+              const value = (isEditing ? parseFloat(editForm.shares) * parseFloat(editForm.currentPrice) : a.shares * a.currentPrice) || 0;
+              const cost = (isEditing ? parseFloat(editForm.shares) * parseFloat(editForm.buyPrice) : a.shares * a.buyPrice) || 0;
               const pl = value - cost;
               const plPct = cost > 0 ? (pl / cost) * 100 : 0;
+              
               return (
-                <TableRow key={a.id}>
+                <TableRow key={a.id} className={isEditing ? "bg-muted/30" : ""}>
                   <TableCell className="font-medium">{a.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{a.ticker}</TableCell>
                   <TableCell>
@@ -144,17 +166,51 @@ export default function FundsTable({ assets, onAdd, onRemove }: Props) {
                       {getEntity(a.type)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right font-mono">{a.shares}</TableCell>
-                  <TableCell className="text-right font-mono">{fmt(a.buyPrice)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmt(a.currentPrice)}</TableCell>
+                  
+                  {/* Celdas Editables */}
+                  <TableCell className="text-right font-mono">
+                    {isEditing ? (
+                      <Input className="h-7 w-20 text-right font-mono text-xs ml-auto" type="number" value={editForm.shares} onChange={e => setEditForm({...editForm, shares: e.target.value})} />
+                    ) : a.shares}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs">
+                    {isEditing ? (
+                      <Input className="h-7 w-24 text-right font-mono text-xs ml-auto" type="number" value={editForm.buyPrice} onChange={e => setEditForm({...editForm, buyPrice: e.target.value})} />
+                    ) : fmt(a.buyPrice)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs">
+                    {isEditing ? (
+                      <Input className="h-7 w-24 text-right font-mono text-xs ml-auto" type="number" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: e.target.value})} />
+                    ) : fmt(a.currentPrice)}
+                  </TableCell>
+                  
                   <TableCell className="text-right font-mono font-medium">{fmt(value)}</TableCell>
                   <TableCell className={`text-right font-mono font-medium ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
                     {pl >= 0 ? '+' : ''}{fmt(pl)} ({plPct.toFixed(1)}%)
                   </TableCell>
+                  
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => onRemove(a.id)} className="h-8 w-8 text-muted-foreground hover:text-loss">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {isEditing ? (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => handleSaveEdit(a.id)} className="h-7 w-7 text-profit hover:bg-profit/10">
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => setEditingId(null)} className="h-7 w-7 text-muted-foreground">
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => startEditing(a)} className="h-7 w-7 text-muted-foreground hover:text-primary">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => onRemove(a.id)} className="h-7 w-7 text-muted-foreground hover:text-loss">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
