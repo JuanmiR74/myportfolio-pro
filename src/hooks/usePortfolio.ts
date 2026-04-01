@@ -287,7 +287,7 @@ export function usePortfolio() {
       const newAssets = prev.assets.map(a => a.id === id ? { ...a, ...updates } : a);
       const updated = newAssets.find(a => a.id === id);
       if (updated) {
-        supabase.from('assets').update(assetToRow(updated)).eq('id', id).then();
+        supabase.from('assets').update(assetToRow(updated) as any).eq('id', id).then();
       }
       return { ...prev, assets: newAssets };
     });
