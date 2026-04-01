@@ -239,7 +239,7 @@ export function usePortfolio() {
 
           // Seed to DB
           for (const a of assetsToSeed) {
-            await supabase.from('assets').upsert(assetToRow(a));
+            await supabase.from('assets').upsert(assetToRow(a) as any);
           }
           for (const r of robosToSeed) {
             await supabase.from('robo_advisors').upsert(roboToRow(r));
