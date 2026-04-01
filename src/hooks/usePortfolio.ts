@@ -1,5 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Asset, RoboAdvisor, PortfolioState, FundClassification } from '@/types/portfolio';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification } from '@/types/portfolio';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const generateHistoricalData = () => {
   const data: { date: string; value: number }[] = [];
@@ -17,54 +19,55 @@ const generateHistoricalData = () => {
 
 const defaultAssets: Asset[] = [
   {
-    id: '1', name: 'Fidelity MSCI World', ticker: 'IE00BYX5NX33', type: 'Fondos MyInvestor',
+    id: crypto.randomUUID(), name: 'Fidelity MSCI World', ticker: 'IE00BYX5NX33', type: 'Fondos MyInvestor',
     shares: 38.91, buyPrice: 25.70, currentPrice: 27.15,
-    classification: {
-      assetClass: 'Renta Variable',
-      sectors: [
-        { name: 'EEUU', weight: 60 },
-        { name: 'Europa', weight: 20 },
-        { name: 'Global', weight: 20 },
-      ],
+    threeDim: {
+      geography: [{ name: 'EEUU', weight: 60 }, { name: 'Europa', weight: 20 }, { name: 'Global', weight: 20 }],
+      sectors: [{ name: 'Tecnología', weight: 30 }, { name: 'Financiero', weight: 20 }, { name: 'Salud', weight: 15 }, { name: 'Consumo', weight: 15 }, { name: 'Industria', weight: 20 }],
+      assetClassPro: [{ name: 'RV - Blend', weight: 100 }],
     },
   },
   {
-    id: '2', name: 'Vanguard Emergentes', ticker: 'IE0031786696', type: 'Fondos MyInvestor',
+    id: crypto.randomUUID(), name: 'Vanguard Emergentes', ticker: 'IE0031786696', type: 'Fondos MyInvestor',
     shares: 5.68, buyPrice: 176.05, currentPrice: 169.80,
-    classification: {
-      assetClass: 'Renta Variable',
-      sectors: [{ name: 'Emergentes', weight: 100 }],
+    threeDim: {
+      geography: [{ name: 'Emergentes', weight: 100 }],
+      sectors: [{ name: 'Tecnología', weight: 25 }, { name: 'Financiero', weight: 25 }, { name: 'Consumo', weight: 20 }, { name: 'Energía', weight: 15 }, { name: 'Otro', weight: 15 }],
+      assetClassPro: [{ name: 'RV - Blend', weight: 100 }],
     },
   },
   {
-    id: '3', name: 'BGF World Healthscience', ticker: 'LU0171307068', type: 'Fondos BBK',
+    id: crypto.randomUUID(), name: 'BGF World Healthscience', ticker: 'LU0171307068', type: 'Fondos BBK',
     shares: 18.52, buyPrice: 54.00, currentPrice: 56.30,
-    classification: {
-      assetClass: 'Renta Variable',
+    threeDim: {
+      geography: [{ name: 'EEUU', weight: 65 }, { name: 'Europa', weight: 25 }, { name: 'Global', weight: 10 }],
       sectors: [{ name: 'Salud', weight: 100 }],
+      assetClassPro: [{ name: 'RV - Growth', weight: 100 }],
     },
   },
   {
-    id: '4', name: 'KBI Global Infrastructure', ticker: 'IE00BKPVHQ28', type: 'Fondos BBK',
+    id: crypto.randomUUID(), name: 'KBI Global Infrastructure', ticker: 'IE00BKPVHQ28', type: 'Fondos BBK',
     shares: 62.11, buyPrice: 16.10, currentPrice: 16.85,
-    classification: {
-      assetClass: 'Renta Variable',
+    threeDim: {
+      geography: [{ name: 'EEUU', weight: 45 }, { name: 'Europa', weight: 35 }, { name: 'Global', weight: 20 }],
       sectors: [{ name: 'Infraestructuras', weight: 100 }],
+      assetClassPro: [{ name: 'RV - Value', weight: 100 }],
     },
   },
   {
-    id: '5', name: 'Vontobel Commodity H (EURHDG)', ticker: 'LU0415415636', type: 'Fondos BBK',
+    id: crypto.randomUUID(), name: 'Vontobel Commodity H (EURHDG)', ticker: 'LU0415415636', type: 'Fondos BBK',
     shares: 5.49, buyPrice: 182.15, currentPrice: 178.40,
-    classification: {
-      assetClass: 'Commodities',
+    threeDim: {
+      geography: [{ name: 'Global', weight: 100 }],
       sectors: [{ name: 'Commodities', weight: 100 }],
+      assetClassPro: [{ name: 'Commodities', weight: 100 }],
     },
   },
 ];
 
 const defaultRobos: RoboAdvisor[] = [
   {
-    id: '1', name: 'MyInvestor - Cartera Metal', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01',
+    id: crypto.randomUUID(), name: 'MyInvestor - Cartera Metal', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01',
     allocations: [
       { assetClass: 'Renta Variable', weight: 80 },
       { assetClass: 'Renta Fija', weight: 15 },
@@ -75,9 +78,14 @@ const defaultRobos: RoboAdvisor[] = [
       { sector: 'EEUU', weight: 25 },
       { sector: 'Emergentes', weight: 15 },
     ],
+    threeDim: {
+      geography: [{ name: 'EEUU', weight: 45 }, { name: 'Europa', weight: 25 }, { name: 'Emergentes', weight: 20 }, { name: 'Global', weight: 10 }],
+      sectors: [{ name: 'Tecnología', weight: 30 }, { name: 'Financiero', weight: 20 }, { name: 'Consumo', weight: 20 }, { name: 'Commodities', weight: 10 }, { name: 'Otro', weight: 20 }],
+      assetClassPro: [{ name: 'RV - Blend', weight: 60 }, { name: 'RF - Sovereign', weight: 15 }, { name: 'Commodities', weight: 5 }, { name: 'RV - Large Cap', weight: 20 }],
+    },
   },
   {
-    id: '2', name: 'Openbank - Cartera Taipei', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01',
+    id: crypto.randomUUID(), name: 'Openbank - Cartera Taipei', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01',
     allocations: [
       { assetClass: 'Renta Variable', weight: 70 },
       { assetClass: 'Renta Fija', weight: 25 },
@@ -88,71 +96,282 @@ const defaultRobos: RoboAdvisor[] = [
       { sector: 'Europa', weight: 30 },
       { sector: 'Emergentes', weight: 20 },
     ],
+    threeDim: {
+      geography: [{ name: 'Europa', weight: 40 }, { name: 'EEUU', weight: 30 }, { name: 'Emergentes', weight: 20 }, { name: 'Global', weight: 10 }],
+      sectors: [{ name: 'Financiero', weight: 25 }, { name: 'Consumo', weight: 25 }, { name: 'Industria', weight: 20 }, { name: 'Tecnología', weight: 15 }, { name: 'Otro', weight: 15 }],
+      assetClassPro: [{ name: 'RV - Blend', weight: 50 }, { name: 'RF - Corporate', weight: 15 }, { name: 'RF - Sovereign', weight: 10 }, { name: 'Monetario', weight: 5 }, { name: 'RV - Large Cap', weight: 20 }],
+    },
   },
 ];
 
-const loadState = (): PortfolioState => {
-  try {
-    const saved = localStorage.getItem('portfolio-state');
-    if (saved) return JSON.parse(saved);
-  } catch {}
+// Convert Asset to DB row
+function assetToRow(a: Asset): Record<string, unknown> {
   return {
-    assets: defaultAssets,
-    roboAdvisors: defaultRobos,
+    id: a.id,
+    name: a.name,
+    ticker: a.ticker,
+    type: a.type,
+    shares: a.shares,
+    buy_price: a.buyPrice,
+    current_price: a.currentPrice,
+    geography: JSON.parse(JSON.stringify(a.threeDim?.geography || [])),
+    sectors: JSON.parse(JSON.stringify(a.threeDim?.sectors || [])),
+    asset_class_pro: JSON.parse(JSON.stringify(a.threeDim?.assetClassPro || [])),
+  };
+}
+
+// Convert DB row to Asset
+function rowToAsset(r: any): Asset {
+  return {
+    id: r.id,
+    name: r.name,
+    ticker: r.ticker,
+    type: r.type,
+    shares: Number(r.shares),
+    buyPrice: Number(r.buy_price),
+    currentPrice: Number(r.current_price),
+    threeDim: {
+      geography: (r.geography as any[]) || [],
+      sectors: (r.sectors as any[]) || [],
+      assetClassPro: (r.asset_class_pro as any[]) || [],
+    },
+  };
+}
+
+function roboToRow(r: RoboAdvisor): Record<string, unknown> {
+  return {
+    id: r.id,
+    name: r.name,
+    total_value: r.totalValue,
+    invested_value: r.investedValue,
+    last_updated: r.lastUpdated,
+    allocations: JSON.parse(JSON.stringify(r.allocations || [])),
+    sector_allocations: JSON.parse(JSON.stringify(r.sectorAllocations || [])),
+    movements: JSON.parse(JSON.stringify(r.movements || [])),
+    geography: JSON.parse(JSON.stringify(r.threeDim?.geography || [])),
+    sectors: JSON.parse(JSON.stringify(r.threeDim?.sectors || [])),
+    asset_class_pro: JSON.parse(JSON.stringify(r.threeDim?.assetClassPro || [])),
+  };
+}
+
+function rowToRobo(r: any): RoboAdvisor {
+  return {
+    id: r.id,
+    name: r.name,
+    totalValue: Number(r.total_value),
+    investedValue: Number(r.invested_value),
+    lastUpdated: r.last_updated || '',
+    allocations: (r.allocations as any[]) || [],
+    sectorAllocations: (r.sector_allocations as any[]) || [],
+    movements: (r.movements as any[]) || [],
+    threeDim: {
+      geography: (r.geography as any[]) || [],
+      sectors: (r.sectors as any[]) || [],
+      assetClassPro: (r.asset_class_pro as any[]) || [],
+    },
+  };
+}
+
+export function usePortfolio() {
+  const [state, setState] = useState<PortfolioState>({
+    assets: [],
+    roboAdvisors: [],
     cashBalance: 5000,
     apiKey: '9JQOWFM3S0MQJZHX',
     historicalData: generateHistoricalData(),
-  };
-};
+  });
+  const [loading, setLoading] = useState(true);
+  const migrated = useRef(false);
 
-export function usePortfolio() {
-  const [state, setState] = useState<PortfolioState>(loadState);
+  // Load from Supabase on mount, with one-time localStorage migration
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // Check if DB has data
+        const { data: dbAssets } = await supabase.from('assets').select('*');
+        const { data: dbRobos } = await supabase.from('robo_advisors').select('*');
+        const { data: dbSettings } = await supabase.from('portfolio_settings').select('*').eq('id', 'default').single();
 
-  const save = useCallback((newState: PortfolioState) => {
-    setState(newState);
-    localStorage.setItem('portfolio-state', JSON.stringify(newState));
+        if (dbAssets && dbAssets.length > 0) {
+          // DB has data, use it
+          setState({
+            assets: dbAssets.map(rowToAsset),
+            roboAdvisors: (dbRobos || []).map(rowToRobo),
+            cashBalance: dbSettings ? Number(dbSettings.cash_balance) : 5000,
+            apiKey: dbSettings?.api_key || '9JQOWFM3S0MQJZHX',
+            historicalData: (dbSettings?.historical_data as any[]) || generateHistoricalData(),
+          });
+          // Clean localStorage if exists
+          if (localStorage.getItem('portfolio-state')) {
+            localStorage.removeItem('portfolio-state');
+          }
+        } else {
+          // No DB data: check localStorage for migration
+          const saved = localStorage.getItem('portfolio-state');
+          let assetsToSeed: Asset[];
+          let robosToSeed: RoboAdvisor[];
+          let cash = 5000;
+          let apiKey = '9JQOWFM3S0MQJZHX';
+          let hist = generateHistoricalData();
+
+          if (saved && !migrated.current) {
+            migrated.current = true;
+            const parsed = JSON.parse(saved) as PortfolioState;
+            // Convert legacy classification to threeDim
+            assetsToSeed = parsed.assets.map(a => ({
+              ...a,
+              id: a.id || crypto.randomUUID(),
+              threeDim: a.threeDim || (a.classification ? legacyToThreeDim(a.classification) : emptyThreeDim()),
+            }));
+            robosToSeed = parsed.roboAdvisors.map(r => ({
+              ...r,
+              id: r.id || crypto.randomUUID(),
+              threeDim: r.threeDim || emptyThreeDim(),
+            }));
+            cash = parsed.cashBalance;
+            apiKey = parsed.apiKey;
+            hist = parsed.historicalData;
+            toast.info('Migrando datos de localStorage a la nube...');
+          } else {
+            assetsToSeed = defaultAssets;
+            robosToSeed = defaultRobos;
+          }
+
+          // Seed to DB
+          for (const a of assetsToSeed) {
+            await supabase.from('assets').upsert(assetToRow(a) as any);
+          }
+          for (const r of robosToSeed) {
+            await supabase.from('robo_advisors').upsert(roboToRow(r) as any);
+          }
+          await supabase.from('portfolio_settings').upsert({
+            id: 'default',
+            cash_balance: cash,
+            api_key: apiKey,
+            historical_data: hist as any,
+          });
+
+          setState({ assets: assetsToSeed, roboAdvisors: robosToSeed, cashBalance: cash, apiKey, historicalData: hist });
+          localStorage.removeItem('portfolio-state');
+          if (saved) toast.success('Datos migrados a Lovable Cloud');
+        }
+      } catch (err) {
+        console.error('Error loading portfolio from Supabase:', err);
+        // Fallback
+        setState(prev => ({ ...prev, assets: defaultAssets, roboAdvisors: defaultRobos }));
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
-  const addAsset = useCallback((asset: Omit<Asset, 'id'>) => {
-    save({ ...state, assets: [...state.assets, { ...asset, id: crypto.randomUUID() }] });
-  }, [state, save]);
+  // Helper to sync state + DB
+  const syncState = useCallback((newState: PortfolioState) => {
+    setState(newState);
+  }, []);
 
-  const removeAsset = useCallback((id: string) => {
-    save({ ...state, assets: state.assets.filter(a => a.id !== id) });
-  }, [state, save]);
+  const addAsset = useCallback(async (asset: Omit<Asset, 'id'>) => {
+    const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
+    await supabase.from('assets').insert(assetToRow(newAsset) as any);
+    setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
+  }, []);
 
-  const updateAsset = useCallback((id: string, updates: Partial<Asset>) => {
-    save({ ...state, assets: state.assets.map(a => a.id === id ? { ...a, ...updates } : a) });
-  }, [state, save]);
+  const removeAsset = useCallback(async (id: string) => {
+    await supabase.from('assets').delete().eq('id', id);
+    setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
+  }, []);
 
-  const updateAssetClassification = useCallback((id: string, classification: FundClassification) => {
-    save({ ...state, assets: state.assets.map(a => a.id === id ? { ...a, classification } : a) });
-  }, [state, save]);
+  const updateAsset = useCallback(async (id: string, updates: Partial<Asset>) => {
+    setState(prev => {
+      const newAssets = prev.assets.map(a => a.id === id ? { ...a, ...updates } : a);
+      const updated = newAssets.find(a => a.id === id);
+      if (updated) {
+        supabase.from('assets').update(assetToRow(updated) as any).eq('id', id).then();
+      }
+      return { ...prev, assets: newAssets };
+    });
+  }, []);
 
-  const addRoboAdvisor = useCallback((robo: Omit<RoboAdvisor, 'id'>) => {
-    save({ ...state, roboAdvisors: [...state.roboAdvisors, { ...robo, id: crypto.randomUUID() }] });
-  }, [state, save]);
+  const updateAssetClassification = useCallback(async (id: string, classification: FundClassification) => {
+    updateAsset(id, { classification });
+  }, [updateAsset]);
 
-  const updateRoboAdvisor = useCallback((id: string, updates: Partial<RoboAdvisor>) => {
-    save({ ...state, roboAdvisors: state.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r) });
-  }, [state, save]);
+  const updateAssetThreeDim = useCallback(async (id: string, threeDim: ThreeDimensionClassification) => {
+    setState(prev => {
+      const newAssets = prev.assets.map(a => a.id === id ? { ...a, threeDim } : a);
+      const updated = newAssets.find(a => a.id === id);
+      if (updated) {
+        supabase.from('assets').update({
+          geography: threeDim.geography as any,
+          sectors: threeDim.sectors as any,
+          asset_class_pro: threeDim.assetClassPro as any,
+        }).eq('id', id).then();
+      }
+      return { ...prev, assets: newAssets };
+    });
+  }, []);
 
-  const removeRoboAdvisor = useCallback((id: string) => {
-    save({ ...state, roboAdvisors: state.roboAdvisors.filter(r => r.id !== id) });
-  }, [state, save]);
+  const addRoboAdvisor = useCallback(async (robo: Omit<RoboAdvisor, 'id'>) => {
+    const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
+    await supabase.from('robo_advisors').insert(roboToRow(newRobo) as any);
+    setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
+  }, []);
 
-  const setApiKey = useCallback((apiKey: string) => {
-    save({ ...state, apiKey });
-  }, [state, save]);
+  const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
+    setState(prev => {
+      const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r);
+      const updated = newRobos.find(r => r.id === id);
+      if (updated) {
+        supabase.from('robo_advisors').update(roboToRow(updated) as any).eq('id', id).then();
+      }
+      return { ...prev, roboAdvisors: newRobos };
+    });
+  }, []);
 
-  const setCashBalance = useCallback((cashBalance: number) => {
-    save({ ...state, cashBalance });
-  }, [state, save]);
+  const updateRoboThreeDim = useCallback(async (id: string, threeDim: ThreeDimensionClassification) => {
+    setState(prev => {
+      const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, threeDim } : r);
+      const updated = newRobos.find(r => r.id === id);
+      if (updated) {
+        supabase.from('robo_advisors').update({
+          geography: threeDim.geography as any,
+          sectors: threeDim.sectors as any,
+          asset_class_pro: threeDim.assetClassPro as any,
+        }).eq('id', id).then();
+      }
+      return { ...prev, roboAdvisors: newRobos };
+    });
+  }, []);
 
-  const updatePrices = useCallback((prices: Record<string, number>) => {
-    const updated = state.assets.map(a => prices[a.ticker] ? { ...a, currentPrice: prices[a.ticker] } : a);
-    save({ ...state, assets: updated });
-  }, [state, save]);
+  const removeRoboAdvisor = useCallback(async (id: string) => {
+    await supabase.from('robo_advisors').delete().eq('id', id);
+    setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
+  }, []);
+
+  const setApiKey = useCallback(async (apiKey: string) => {
+    await supabase.from('portfolio_settings').update({ api_key: apiKey }).eq('id', 'default');
+    setState(prev => ({ ...prev, apiKey }));
+  }, []);
+
+  const setCashBalance = useCallback(async (cashBalance: number) => {
+    await supabase.from('portfolio_settings').update({ cash_balance: cashBalance }).eq('id', 'default');
+    setState(prev => ({ ...prev, cashBalance }));
+  }, []);
+
+  const updatePrices = useCallback(async (prices: Record<string, number>) => {
+    setState(prev => {
+      const updated = prev.assets.map(a => {
+        if (prices[a.ticker]) {
+          const newA = { ...a, currentPrice: prices[a.ticker] };
+          supabase.from('assets').update({ current_price: prices[a.ticker] }).eq('id', a.id).then();
+          return newA;
+        }
+        return a;
+      });
+      return { ...prev, assets: updated };
+    });
+  }, []);
 
   const summary = useMemo(() => {
     const assetsValue = state.assets.reduce((s, a) => s + a.shares * a.currentPrice, 0);
@@ -185,185 +404,124 @@ export function usePortfolio() {
     ].filter(d => d.value > 0);
   }, [state]);
 
-  // X-Ray: Asset class distribution across all holdings
-  const xrayAssetClass = useMemo(() => {
-    const totals: Record<string, number> = {};
-    
-    // Funds with classification
-    state.assets.forEach(a => {
-      const value = a.shares * a.currentPrice;
-      if (a.classification) {
-        const cls = a.classification.assetClass;
-        totals[cls] = (totals[cls] || 0) + value;
-      } else {
-        totals['Sin clasificar'] = (totals['Sin clasificar'] || 0) + value;
-      }
-    });
-
-    // Robo-advisors with allocations
-    state.roboAdvisors.forEach(r => {
-      if (r.allocations && r.allocations.length > 0) {
-        r.allocations.forEach(alloc => {
-          totals[alloc.assetClass] = (totals[alloc.assetClass] || 0) + (r.totalValue * alloc.weight / 100);
-        });
-      } else {
-        totals['Sin clasificar'] = (totals['Sin clasificar'] || 0) + r.totalValue;
-      }
-    });
-
-    // Cash
-    if (state.cashBalance > 0) {
-      totals['Monetario'] = (totals['Monetario'] || 0) + state.cashBalance;
-    }
-
-    const colorMap: Record<string, string> = {
-      'Renta Variable': 'hsl(25, 95%, 53%)',   // orange
-      'Renta Fija': 'hsl(217, 91%, 60%)',       // blue
-      'Monetario': 'hsl(160, 84%, 39%)',        // green
-      'Commodities': 'hsl(47, 96%, 53%)',       // gold
-      'Mixto': 'hsl(280, 65%, 60%)',            // purple
-      'Sin clasificar': 'hsl(0, 0%, 50%)',
-    };
-
-    return Object.entries(totals)
-      .filter(([, v]) => v > 0)
-      .map(([name, value]) => ({ name, value, fill: colorMap[name] || 'hsl(0, 0%, 50%)' }));
-  }, [state]);
-
-  // X-Ray: Sector/Geography distribution
-  const xraySectorGeo = useMemo(() => {
-    const totals: Record<string, number> = {};
-
-    state.assets.forEach(a => {
-      const value = a.shares * a.currentPrice;
-      if (a.classification?.sectors) {
-        a.classification.sectors.forEach(s => {
-          totals[s.name] = (totals[s.name] || 0) + (value * s.weight / 100);
-        });
-      } else {
-        totals['Sin clasificar'] = (totals['Sin clasificar'] || 0) + value;
-      }
-    });
-
-    state.roboAdvisors.forEach(r => {
-      if (r.sectorAllocations && r.sectorAllocations.length > 0) {
-        r.sectorAllocations.forEach(s => {
-          totals[s.sector] = (totals[s.sector] || 0) + (r.totalValue * s.weight / 100);
-        });
-      } else {
-        totals['Sin clasificar'] = (totals['Sin clasificar'] || 0) + r.totalValue;
-      }
-    });
-
-    const colorMap: Record<string, string> = {
-      'Global': 'hsl(217, 91%, 60%)',
-      'EEUU': 'hsl(210, 80%, 50%)',
-      'Europa': 'hsl(160, 84%, 39%)',
-      'Emergentes': 'hsl(25, 95%, 53%)',
-      'Salud': 'hsl(340, 75%, 55%)',
-      'Tecnología': 'hsl(260, 70%, 60%)',
-      'Infraestructuras': 'hsl(190, 70%, 45%)',
-      'Commodities': 'hsl(47, 96%, 53%)',
-      'Otro': 'hsl(0, 0%, 60%)',
-      'Sin clasificar': 'hsl(0, 0%, 50%)',
-    };
-
-    return Object.entries(totals)
-      .filter(([, v]) => v > 0)
-      .map(([name, value]) => ({ name, value, fill: colorMap[name] || 'hsl(0, 0%, 50%)' }));
-  }, [state]);
-
-  // Filtered X-Ray by entity
+  // X-Ray using threeDim
   const getXrayByEntity = useCallback((entity: 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors') => {
-    const assetClassTotals: Record<string, number> = {};
+    const geoTotals: Record<string, number> = {};
     const sectorTotals: Record<string, number> = {};
+    const acpTotals: Record<string, number> = {};
 
-    const filteredAssets = entity === 'all'
-      ? state.assets
-      : entity === 'MyInvestor'
-        ? state.assets.filter(a => a.type === 'Fondos MyInvestor')
-        : entity === 'BBK'
-          ? state.assets.filter(a => a.type === 'Fondos BBK')
-          : [];
+    const filteredAssets = entity === 'all' ? state.assets
+      : entity === 'MyInvestor' ? state.assets.filter(a => a.type === 'Fondos MyInvestor')
+      : entity === 'BBK' ? state.assets.filter(a => a.type === 'Fondos BBK')
+      : [];
 
     filteredAssets.forEach(a => {
       const value = a.shares * a.currentPrice;
-      if (a.classification) {
-        assetClassTotals[a.classification.assetClass] = (assetClassTotals[a.classification.assetClass] || 0) + value;
-        a.classification.sectors.forEach(s => {
-          sectorTotals[s.name] = (sectorTotals[s.name] || 0) + (value * s.weight / 100);
-        });
-      } else {
-        assetClassTotals['Sin clasificar'] = (assetClassTotals['Sin clasificar'] || 0) + value;
-        sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value;
-      }
+      const td = a.threeDim;
+      if (td?.geography?.length) {
+        td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
+      } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
+      if (td?.sectors?.length) {
+        td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
+      } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
+      if (td?.assetClassPro?.length) {
+        td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
+      } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
     });
 
     const filteredRobos = (entity === 'all' || entity === 'Robo-Advisors') ? state.roboAdvisors : [];
     filteredRobos.forEach(r => {
-      if (r.allocations?.length) {
-        r.allocations.forEach(alloc => {
-          assetClassTotals[alloc.assetClass] = (assetClassTotals[alloc.assetClass] || 0) + (r.totalValue * alloc.weight / 100);
-        });
-      } else {
-        assetClassTotals['Sin clasificar'] = (assetClassTotals['Sin clasificar'] || 0) + r.totalValue;
-      }
-      if (r.sectorAllocations?.length) {
-        r.sectorAllocations.forEach(s => {
-          sectorTotals[s.sector] = (sectorTotals[s.sector] || 0) + (r.totalValue * s.weight / 100);
-        });
-      } else {
-        sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + r.totalValue;
-      }
+      const value = r.totalValue;
+      const td = r.threeDim;
+      if (td?.geography?.length) {
+        td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
+      } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
+      if (td?.sectors?.length) {
+        td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
+      } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
+      if (td?.assetClassPro?.length) {
+        td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
+      } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
     });
 
     if (entity === 'all' && state.cashBalance > 0) {
-      assetClassTotals['Monetario'] = (assetClassTotals['Monetario'] || 0) + state.cashBalance;
+      acpTotals['Monetario'] = (acpTotals['Monetario'] || 0) + state.cashBalance;
     }
 
-    const acColorMap: Record<string, string> = {
-      'Renta Variable': 'hsl(25, 95%, 53%)',
-      'Renta Fija': 'hsl(217, 91%, 60%)',
-      'Monetario': 'hsl(160, 84%, 39%)',
-      'Commodities': 'hsl(47, 96%, 53%)',
-      'Mixto': 'hsl(280, 65%, 60%)',
-      'Sin clasificar': 'hsl(0, 0%, 50%)',
+    const geoColors: Record<string, string> = {
+      'EEUU': 'hsl(210, 80%, 50%)', 'Europa': 'hsl(160, 84%, 39%)', 'Emergentes': 'hsl(25, 95%, 53%)',
+      'Japón': 'hsl(0, 70%, 55%)', 'Asia-Pacífico': 'hsl(280, 65%, 60%)', 'Global': 'hsl(217, 91%, 60%)', 'Otro': 'hsl(0, 0%, 60%)', 'Sin clasificar': 'hsl(0, 0%, 50%)',
     };
-    const sColorMap: Record<string, string> = {
-      'Global': 'hsl(217, 91%, 60%)',
-      'EEUU': 'hsl(210, 80%, 50%)',
-      'Europa': 'hsl(160, 84%, 39%)',
-      'Emergentes': 'hsl(25, 95%, 53%)',
-      'Salud': 'hsl(340, 75%, 55%)',
-      'Tecnología': 'hsl(260, 70%, 60%)',
-      'Infraestructuras': 'hsl(190, 70%, 45%)',
-      'Commodities': 'hsl(47, 96%, 53%)',
-      'Otro': 'hsl(0, 0%, 60%)',
+    const sectorColors: Record<string, string> = {
+      'Tecnología': 'hsl(260, 70%, 60%)', 'Salud': 'hsl(340, 75%, 55%)', 'Financiero': 'hsl(210, 80%, 50%)',
+      'Energía': 'hsl(30, 90%, 50%)', 'Consumo': 'hsl(160, 70%, 45%)', 'Industria': 'hsl(190, 70%, 45%)',
+      'Infraestructuras': 'hsl(180, 60%, 40%)', 'Commodities': 'hsl(47, 96%, 53%)', 'Inmobiliario': 'hsl(15, 70%, 50%)',
+      'Telecomunicaciones': 'hsl(240, 60%, 55%)', 'Otro': 'hsl(0, 0%, 60%)', 'Sin clasificar': 'hsl(0, 0%, 50%)',
+    };
+    const acpColors: Record<string, string> = {
+      'RV - Growth': 'hsl(25, 95%, 53%)', 'RV - Value': 'hsl(35, 90%, 50%)', 'RV - Large Cap': 'hsl(15, 85%, 55%)',
+      'RV - Mid/Small Cap': 'hsl(45, 90%, 50%)', 'RV - Blend': 'hsl(20, 95%, 53%)',
+      'RF - Sovereign': 'hsl(217, 91%, 60%)', 'RF - Corporate': 'hsl(200, 80%, 55%)', 'RF - High Yield': 'hsl(230, 70%, 55%)',
+      'RF - Corto Plazo': 'hsl(195, 75%, 50%)', 'RF - Largo Plazo': 'hsl(210, 85%, 50%)',
+      'Monetario': 'hsl(160, 84%, 39%)', 'Commodities': 'hsl(47, 96%, 53%)', 'Mixto': 'hsl(280, 65%, 60%)',
       'Sin clasificar': 'hsl(0, 0%, 50%)',
     };
 
+    const toItems = (totals: Record<string, number>, colors: Record<string, string>) =>
+      Object.entries(totals).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value, fill: colors[name] || 'hsl(0,0%,50%)' }));
+
     return {
-      assetClass: Object.entries(assetClassTotals).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value, fill: acColorMap[name] || 'hsl(0,0%,50%)' })),
-      sectorGeo: Object.entries(sectorTotals).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value, fill: sColorMap[name] || 'hsl(0,0%,50%)' })),
+      geography: toItems(geoTotals, geoColors),
+      sector: toItems(sectorTotals, sectorColors),
+      assetClassPro: toItems(acpTotals, acpColors),
     };
   }, [state]);
 
   return {
     ...state,
+    loading,
     summary,
     distribution,
-    xrayAssetClass,
-    xraySectorGeo,
     getXrayByEntity,
     addAsset,
     removeAsset,
     updateAsset,
     updateAssetClassification,
+    updateAssetThreeDim,
     addRoboAdvisor,
     updateRoboAdvisor,
+    updateRoboThreeDim,
     removeRoboAdvisor,
     setApiKey,
     setCashBalance,
     updatePrices,
+  };
+}
+
+function emptyThreeDim(): ThreeDimensionClassification {
+  return { geography: [], sectors: [], assetClassPro: [] };
+}
+
+function legacyToThreeDim(c: FundClassification): ThreeDimensionClassification {
+  const geoMap: Record<string, string> = { 'Global': 'Global', 'EEUU': 'EEUU', 'Europa': 'Europa', 'Emergentes': 'Emergentes' };
+  const sectorMap: Record<string, string> = { 'Salud': 'Salud', 'Tecnología': 'Tecnología', 'Infraestructuras': 'Infraestructuras', 'Commodities': 'Commodities' };
+  
+  const geo: any[] = [];
+  const sec: any[] = [];
+  c.sectors.forEach(s => {
+    if (geoMap[s.name]) geo.push({ name: geoMap[s.name], weight: s.weight });
+    else if (sectorMap[s.name]) sec.push({ name: sectorMap[s.name], weight: s.weight });
+    else geo.push({ name: 'Otro', weight: s.weight });
+  });
+
+  const acpMap: Record<string, string> = {
+    'Renta Variable': 'RV - Blend', 'Renta Fija': 'RF - Sovereign', 'Monetario': 'Monetario',
+    'Commodities': 'Commodities', 'Mixto': 'Mixto',
+  };
+
+  return {
+    geography: geo.length ? geo : [{ name: 'Global', weight: 100 }],
+    sectors: sec.length ? sec : [{ name: 'Otro', weight: 100 }],
+    assetClassPro: [{ name: (acpMap[c.assetClass] || 'RV - Blend') as any, weight: 100 }],
   };
 }

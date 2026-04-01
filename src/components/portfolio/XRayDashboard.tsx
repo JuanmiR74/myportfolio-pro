@@ -1,51 +1,48 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Asset, RoboAdvisor } from '@/types/portfolio';
+import { Button } from '@/components/ui/button';
+import { Pencil } from 'lucide-react';
+import { Asset, RoboAdvisor, ThreeDimensionClassification } from '@/types/portfolio';
+import ThreeDimEditor from '@/components/portfolio/ThreeDimEditor';
 
-interface DataItem {
-  name: string;
-  value: number;
-  fill: string;
-}
+interface DataItem { name: string; value: number; fill: string; }
 
 interface XRayAsset {
+  id: string;
   name: string;
   isin: string;
   origin: 'Fondo Individual' | 'Robo-advisor';
   entity: string;
   value: number;
   weightPct: number;
+  threeDim?: ThreeDimensionClassification;
+  sourceType: 'asset' | 'robo';
 }
 
 interface Props {
   getXrayByEntity: (entity: 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors') => {
-    assetClass: DataItem[];
-    sectorGeo: DataItem[];
+    geography: DataItem[];
+    sector: DataItem[];
+    assetClassPro: DataItem[];
   };
   entityFilter: 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
   assets: Asset[];
   roboAdvisors: RoboAdvisor[];
+  onUpdateAssetThreeDim: (id: string, td: ThreeDimensionClassification) => void;
+  onUpdateRoboThreeDim: (id: string, td: ThreeDimensionClassification) => void;
 }
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
-function fmtPct(value: number, total: number) {
-  return total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
-}
-
-const GEO_ITEMS = new Set(['Global', 'EEUU', 'Europa', 'Emergentes']);
-const SECTOR_ITEMS = new Set(['Salud', 'Tecnología', 'Infraestructuras', 'Commodities', 'Otro']);
-
 function HorizontalBarSection({ title, data, subtitle }: { title: string; data: DataItem[]; subtitle?: string }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
   const sorted = [...data].sort((a, b) => b.value - a.value);
-
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
       <CardHeader className="pb-2">
@@ -84,12 +81,10 @@ function HorizontalBarSection({ title, data, subtitle }: { title: string; data: 
 function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
-
+  const fmtPct = (v: number) => total > 0 ? ((v / total) * 100).toFixed(1) + '%' : '0%';
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
+      <CardHeader className="pb-2"><CardTitle className="text-base">{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="flex flex-col items-center gap-4">
           <div className="w-52 h-52 relative">
@@ -98,10 +93,7 @@ function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
                 <Pie data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>
                   {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Pie>
-                <Tooltip
-                  formatter={(v: number) => [fmt(v), '']}
-                  contentStyle={{ background: 'hsl(224, 25%, 11%)', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                />
+                <Tooltip formatter={(v: number) => [fmt(v), '']} contentStyle={{ background: 'hsl(224, 25%, 11%)', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center">
@@ -116,7 +108,7 @@ function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
               <div key={d.name} className="flex items-center gap-2 text-sm">
                 <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.fill }} />
                 <span className="text-muted-foreground truncate text-xs">{d.name}</span>
-                <span className="font-mono font-medium ml-auto text-xs shrink-0">{fmtPct(d.value, total)}</span>
+                <span className="font-mono font-medium ml-auto text-xs shrink-0">{fmtPct(d.value)}</span>
               </div>
             ))}
           </div>
@@ -126,12 +118,10 @@ function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
   );
 }
 
-export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, roboAdvisors }: Props) {
-  const { assetClass, sectorGeo } = getXrayByEntity(entityFilter);
-  const geographic = useMemo(() => sectorGeo.filter(d => GEO_ITEMS.has(d.name)), [sectorGeo]);
-  const sectoral = useMemo(() => sectorGeo.filter(d => SECTOR_ITEMS.has(d.name) || !GEO_ITEMS.has(d.name)), [sectorGeo]);
+export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, roboAdvisors, onUpdateAssetThreeDim, onUpdateRoboThreeDim }: Props) {
+  const { geography, sector, assetClassPro } = getXrayByEntity(entityFilter);
+  const [editingItem, setEditingItem] = useState<XRayAsset | null>(null);
 
-  // Build detailed asset list with origin and weight
   const xrayAssets = useMemo(() => {
     const items: XRayAsset[] = [];
     const filteredAssets = entityFilter === 'all' ? assets
@@ -141,33 +131,19 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
 
     filteredAssets.forEach(a => {
       items.push({
-        name: a.name,
-        isin: a.ticker,
-        origin: 'Fondo Individual',
-        entity: a.type.replace('Fondos ', ''),
-        value: a.shares * a.currentPrice,
-        weightPct: 0,
+        id: a.id, name: a.name, isin: a.ticker, origin: 'Fondo Individual',
+        entity: a.type.replace('Fondos ', ''), value: a.shares * a.currentPrice,
+        weightPct: 0, threeDim: a.threeDim, sourceType: 'asset',
       });
     });
 
     const filteredRobos = (entityFilter === 'all' || entityFilter === 'Robo-Advisors') ? roboAdvisors : [];
     filteredRobos.forEach(r => {
-      // Check if robo has internal fund breakdown from movements
-      const fundMovements = r.movements?.filter(m => m.category === 'fondo' && m.fundName) || [];
-      const fundMap: Record<string, { isin: string; total: number }> = {};
-      fundMovements.forEach(m => {
-        const key = m.fundName!;
-        if (!fundMap[key]) fundMap[key] = { isin: m.isin || '', total: 0 };
-        fundMap[key].total += Math.abs(m.amount);
+      items.push({
+        id: r.id, name: r.name, isin: '—', origin: 'Robo-advisor',
+        entity: r.name.split(' - ')[0] || r.name, value: r.totalValue,
+        weightPct: 0, threeDim: r.threeDim, sourceType: 'robo',
       });
-
-      if (Object.keys(fundMap).length > 0) {
-        Object.entries(fundMap).forEach(([name, { isin, total }]) => {
-          items.push({ name, isin, origin: 'Robo-advisor', entity: r.name, value: total, weightPct: 0 });
-        });
-      } else {
-        items.push({ name: r.name, isin: '—', origin: 'Robo-advisor', entity: r.name, value: r.totalValue, weightPct: 0 });
-      }
     });
 
     const totalValue = items.reduce((s, i) => s + i.value, 0);
@@ -177,23 +153,33 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
 
   const filterLabel = entityFilter === 'all' ? 'Cartera Global' : entityFilter;
 
+  const hasDim = (td?: ThreeDimensionClassification) => td && (td.geography.length > 0 || td.sectors.length > 0 || td.assetClassPro.length > 0);
+
+  const handleSaveThreeDim = (td: ThreeDimensionClassification) => {
+    if (!editingItem) return;
+    if (editingItem.sourceType === 'asset') onUpdateAssetThreeDim(editingItem.id, td);
+    else onUpdateRoboThreeDim(editingItem.id, td);
+    setEditingItem(null);
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold mb-1">Radiografía (X-Ray) — {filterLabel}</h2>
-        <p className="text-sm text-muted-foreground">Exposición ponderada real de tu patrimonio. Usa el filtro global para cambiar la vista.</p>
+        <p className="text-sm text-muted-foreground">Exposición ponderada real en 3 dimensiones independientes.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <DonutChart title="Asset Allocation" data={assetClass} />
-        <HorizontalBarSection title="Distribución Geográfica" data={geographic} subtitle="Exposición por región/país" />
-        <HorizontalBarSection title="Distribución Sectorial" data={sectoral} subtitle="Exposición por sector/industria" />
+        <DonutChart title="Asset Class Profesional" data={assetClassPro} />
+        <HorizontalBarSection title="Distribución Geográfica" data={geography} subtitle="Exposición por región/país" />
+        <HorizontalBarSection title="Distribución Sectorial" data={sector} subtitle="Exposición por sector/industria" />
       </div>
 
-      {/* Detailed asset table with Origin and Weight */}
+      {/* Activos Desglosados with inline classification editing */}
       <Card className="border-border/50 bg-card/80 backdrop-blur">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Activos Desglosados</CardTitle>
+          <p className="text-xs text-muted-foreground">Pulsa ✏️ para editar las 3 dimensiones de clasificación de cada activo.</p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -204,28 +190,57 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
                 <TableHead className="text-xs">Origen</TableHead>
                 <TableHead className="text-xs">Entidad</TableHead>
                 <TableHead className="text-right text-xs">Valor (€)</TableHead>
-                <TableHead className="text-right text-xs">% Peso Cartera</TableHead>
+                <TableHead className="text-right text-xs">% Peso</TableHead>
+                <TableHead className="text-xs">Clasificación</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {xrayAssets.map((a, i) => (
-                <TableRow key={`${a.isin}-${i}`}>
+                <TableRow key={`${a.id}-${i}`}>
                   <TableCell className="text-sm font-medium">{a.name}</TableCell>
                   <TableCell className="text-xs font-mono text-muted-foreground">{a.isin}</TableCell>
                   <TableCell>
-                    <Badge variant={a.origin === 'Fondo Individual' ? 'default' : 'secondary'} className="text-[10px]">
-                      {a.origin}
-                    </Badge>
+                    <Badge variant={a.origin === 'Fondo Individual' ? 'default' : 'secondary'} className="text-[10px]">{a.origin}</Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{a.entity}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{fmt(a.value)}</TableCell>
                   <TableCell className="text-right font-mono text-sm font-semibold">{a.weightPct.toFixed(1)}%</TableCell>
+                  <TableCell>
+                    {hasDim(a.threeDim) ? (
+                      <div className="flex flex-wrap gap-0.5">
+                        {a.threeDim!.geography.slice(0, 2).map(g => (
+                          <span key={g.name} className="text-[9px] bg-blue-500/20 text-blue-300 px-1 py-0.5 rounded">{g.name} {g.weight}%</span>
+                        ))}
+                        {a.threeDim!.sectors.slice(0, 2).map(s => (
+                          <span key={s.name} className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.5 rounded">{s.name} {s.weight}%</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Sin clasificar</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingItem(a)}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {editingItem && (
+        <ThreeDimEditor
+          open={!!editingItem}
+          onClose={() => setEditingItem(null)}
+          assetName={editingItem.name}
+          initial={editingItem.threeDim}
+          onSave={handleSaveThreeDim}
+        />
+      )}
     </div>
   );
 }
