@@ -314,7 +314,7 @@ export function usePortfolio() {
 
   const addRoboAdvisor = useCallback(async (robo: Omit<RoboAdvisor, 'id'>) => {
     const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
-    await supabase.from('robo_advisors').insert(roboToRow(newRobo));
+    await supabase.from('robo_advisors').insert(roboToRow(newRobo) as any);
     setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
   }, []);
 
