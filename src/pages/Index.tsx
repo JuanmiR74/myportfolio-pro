@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader2 } from 'lucide-react';
+import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader as Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
+import { Header } from '@/components/Header';
 import SummaryCards from '@/components/portfolio/SummaryCards';
 import AllocationChart from '@/components/portfolio/AllocationChart';
 import HistoryChart from '@/components/portfolio/HistoryChart';
@@ -28,7 +29,8 @@ export default function Index() {
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur sticky top-0 z-50">
+      <Header />
+      <div className="border-b border-border/50 bg-card/50 backdrop-blur">
         <div className="container flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
@@ -49,7 +51,7 @@ export default function Index() {
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="container py-6 px-4 space-y-6">
         <SummaryCards totalValue={p.summary.totalValue} totalPL={p.summary.totalPL} totalPLPercent={p.summary.totalPLPercent} dayChange={p.summary.dayChange} xirr={p.summary.xirr} />

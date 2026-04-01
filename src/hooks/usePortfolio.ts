@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification } from '@/types/portfolio';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 const generateHistoricalData = () => {
@@ -173,6 +174,7 @@ function rowToRobo(r: any): RoboAdvisor {
 }
 
 export function usePortfolio() {
+  const { user } = useAuth();
   const [state, setState] = useState<PortfolioState>({
     assets: [],
     roboAdvisors: [],
@@ -186,11 +188,13 @@ export function usePortfolio() {
   // Load from Supabase on mount, with one-time localStorage migration
   useEffect(() => {
     const init = async () => {
+      if (!user) return;
+
       try {
-        // Check if DB has data
-        const { data: dbAssets } = await supabase.from('assets').select('*');
-        const { data: dbRobos } = await supabase.from('robo_advisors').select('*');
-        const { data: dbSettings } = await supabase.from('portfolio_settings').select('*').eq('id', 'default').single();
+        // Check if DB has data for this user
+        const { data: dbAssets } = await supabase.from('assets').select('*').eq('user_id', user.id);
+        const { data: dbRobos } = await supabase.from('robo_advisors').select('*').eq('user_id', user.id);
+        const { data: dbSettings } = await supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle();
 
         if (dbAssets && dbAssets.length > 0) {
           // DB has data, use it
@@ -239,13 +243,13 @@ export function usePortfolio() {
 
           // Seed to DB
           for (const a of assetsToSeed) {
-            await supabase.from('assets').upsert(assetToRow(a) as any);
+            await supabase.from('assets').upsert({ ...assetToRow(a), user_id: user.id } as any);
           }
           for (const r of robosToSeed) {
-            await supabase.from('robo_advisors').upsert(roboToRow(r) as any);
+            await supabase.from('robo_advisors').upsert({ ...roboToRow(r), user_id: user.id } as any);
           }
           await supabase.from('portfolio_settings').upsert({
-            id: 'default',
+            user_id: user.id,
             cash_balance: cash,
             api_key: apiKey,
             historical_data: hist as any,
@@ -264,7 +268,7 @@ export function usePortfolio() {
       }
     };
     init();
-  }, []);
+  }, [user]);
 
   // Helper to sync state + DB
   const syncState = useCallback((newState: PortfolioState) => {
@@ -272,32 +276,36 @@ export function usePortfolio() {
   }, []);
 
   const addAsset = useCallback(async (asset: Omit<Asset, 'id'>) => {
+    if (!user) return;
     const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
-    await supabase.from('assets').insert(assetToRow(newAsset) as any);
+    await supabase.from('assets').insert({ ...assetToRow(newAsset), user_id: user.id } as any);
     setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
-  }, []);
+  }, [user]);
 
   const removeAsset = useCallback(async (id: string) => {
-    await supabase.from('assets').delete().eq('id', id);
+    if (!user) return;
+    await supabase.from('assets').delete().eq('id', id).eq('user_id', user.id);
     setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
-  }, []);
+  }, [user]);
 
   const updateAsset = useCallback(async (id: string, updates: Partial<Asset>) => {
+    if (!user) return;
     setState(prev => {
       const newAssets = prev.assets.map(a => a.id === id ? { ...a, ...updates } : a);
       const updated = newAssets.find(a => a.id === id);
       if (updated) {
-        supabase.from('assets').update(assetToRow(updated) as any).eq('id', id).then();
+        supabase.from('assets').update(assetToRow(updated) as any).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
-  }, []);
+  }, [user]);
 
   const updateAssetClassification = useCallback(async (id: string, classification: FundClassification) => {
     updateAsset(id, { classification });
   }, [updateAsset]);
 
   const updateAssetThreeDim = useCallback(async (id: string, threeDim: ThreeDimensionClassification) => {
+    if (!user) return;
     setState(prev => {
       const newAssets = prev.assets.map(a => a.id === id ? { ...a, threeDim } : a);
       const updated = newAssets.find(a => a.id === id);
@@ -306,30 +314,33 @@ export function usePortfolio() {
           geography: threeDim.geography as any,
           sectors: threeDim.sectors as any,
           asset_class_pro: threeDim.assetClassPro as any,
-        }).eq('id', id).then();
+        }).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
-  }, []);
+  }, [user]);
 
   const addRoboAdvisor = useCallback(async (robo: Omit<RoboAdvisor, 'id'>) => {
+    if (!user) return;
     const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
-    await supabase.from('robo_advisors').insert(roboToRow(newRobo) as any);
+    await supabase.from('robo_advisors').insert({ ...roboToRow(newRobo), user_id: user.id } as any);
     setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
-  }, []);
+  }, [user]);
 
   const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
+    if (!user) return;
     setState(prev => {
       const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r);
       const updated = newRobos.find(r => r.id === id);
       if (updated) {
-        supabase.from('robo_advisors').update(roboToRow(updated) as any).eq('id', id).then();
+        supabase.from('robo_advisors').update(roboToRow(updated) as any).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
-  }, []);
+  }, [user]);
 
   const updateRoboThreeDim = useCallback(async (id: string, threeDim: ThreeDimensionClassification) => {
+    if (!user) return;
     setState(prev => {
       const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, threeDim } : r);
       const updated = newRobos.find(r => r.id === id);
@@ -338,40 +349,44 @@ export function usePortfolio() {
           geography: threeDim.geography as any,
           sectors: threeDim.sectors as any,
           asset_class_pro: threeDim.assetClassPro as any,
-        }).eq('id', id).then();
+        }).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
-  }, []);
+  }, [user]);
 
   const removeRoboAdvisor = useCallback(async (id: string) => {
-    await supabase.from('robo_advisors').delete().eq('id', id);
+    if (!user) return;
+    await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id', user.id);
     setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
-  }, []);
+  }, [user]);
 
   const setApiKey = useCallback(async (apiKey: string) => {
-    await supabase.from('portfolio_settings').update({ api_key: apiKey }).eq('id', 'default');
+    if (!user) return;
+    await supabase.from('portfolio_settings').update({ api_key: apiKey }).eq('user_id', user.id);
     setState(prev => ({ ...prev, apiKey }));
-  }, []);
+  }, [user]);
 
   const setCashBalance = useCallback(async (cashBalance: number) => {
-    await supabase.from('portfolio_settings').update({ cash_balance: cashBalance }).eq('id', 'default');
+    if (!user) return;
+    await supabase.from('portfolio_settings').update({ cash_balance: cashBalance }).eq('user_id', user.id);
     setState(prev => ({ ...prev, cashBalance }));
-  }, []);
+  }, [user]);
 
   const updatePrices = useCallback(async (prices: Record<string, number>) => {
+    if (!user) return;
     setState(prev => {
       const updated = prev.assets.map(a => {
         if (prices[a.ticker]) {
           const newA = { ...a, currentPrice: prices[a.ticker] };
-          supabase.from('assets').update({ current_price: prices[a.ticker] }).eq('id', a.id).then();
+          supabase.from('assets').update({ current_price: prices[a.ticker] }).eq('id', a.id).eq('user_id', user.id).then();
           return newA;
         }
         return a;
       });
       return { ...prev, assets: updated };
     });
-  }, []);
+  }, [user]);
 
   const summary = useMemo(() => {
     const assetsValue = state.assets.reduce((s, a) => s + a.shares * a.currentPrice, 0);
