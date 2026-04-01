@@ -273,7 +273,7 @@ export function usePortfolio() {
 
   const addAsset = useCallback(async (asset: Omit<Asset, 'id'>) => {
     const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
-    await supabase.from('assets').insert(assetToRow(newAsset));
+    await supabase.from('assets').insert(assetToRow(newAsset) as any);
     setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
   }, []);
 
