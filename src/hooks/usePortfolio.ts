@@ -323,7 +323,7 @@ export function usePortfolio() {
       const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r);
       const updated = newRobos.find(r => r.id === id);
       if (updated) {
-        supabase.from('robo_advisors').update(roboToRow(updated)).eq('id', id).then();
+        supabase.from('robo_advisors').update(roboToRow(updated) as any).eq('id', id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
