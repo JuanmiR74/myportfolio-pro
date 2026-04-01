@@ -522,6 +522,6 @@ function legacyToThreeDim(c: FundClassification): ThreeDimensionClassification {
   return {
     geography: geo.length ? geo : [{ name: 'Global', weight: 100 }],
     sectors: sec.length ? sec : [{ name: 'Otro', weight: 100 }],
-    assetClassPro: [{ name: acpMap[c.assetClass] || 'RV - Blend', weight: 100 }],
+    assetClassPro: [{ name: (acpMap[c.assetClass] || 'RV - Blend') as any, weight: 100 }],
   };
 }
