@@ -105,7 +105,7 @@ const defaultRobos: RoboAdvisor[] = [
 ];
 
 // Convert Asset to DB row
-function assetToRow(a: Asset) {
+function assetToRow(a: Asset): Record<string, unknown> {
   return {
     id: a.id,
     name: a.name,
@@ -114,9 +114,9 @@ function assetToRow(a: Asset) {
     shares: a.shares,
     buy_price: a.buyPrice,
     current_price: a.currentPrice,
-    geography: a.threeDim?.geography || [],
-    sectors: a.threeDim?.sectors || [],
-    asset_class_pro: a.threeDim?.assetClassPro || [],
+    geography: JSON.parse(JSON.stringify(a.threeDim?.geography || [])),
+    sectors: JSON.parse(JSON.stringify(a.threeDim?.sectors || [])),
+    asset_class_pro: JSON.parse(JSON.stringify(a.threeDim?.assetClassPro || [])),
   };
 }
 
@@ -138,19 +138,19 @@ function rowToAsset(r: any): Asset {
   };
 }
 
-function roboToRow(r: RoboAdvisor) {
+function roboToRow(r: RoboAdvisor): Record<string, unknown> {
   return {
     id: r.id,
     name: r.name,
     total_value: r.totalValue,
     invested_value: r.investedValue,
     last_updated: r.lastUpdated,
-    allocations: r.allocations || [],
-    sector_allocations: r.sectorAllocations || [],
-    movements: r.movements || [],
-    geography: r.threeDim?.geography || [],
-    sectors: r.threeDim?.sectors || [],
-    asset_class_pro: r.threeDim?.assetClassPro || [],
+    allocations: JSON.parse(JSON.stringify(r.allocations || [])),
+    sector_allocations: JSON.parse(JSON.stringify(r.sectorAllocations || [])),
+    movements: JSON.parse(JSON.stringify(r.movements || [])),
+    geography: JSON.parse(JSON.stringify(r.threeDim?.geography || [])),
+    sectors: JSON.parse(JSON.stringify(r.threeDim?.sectors || [])),
+    asset_class_pro: JSON.parse(JSON.stringify(r.threeDim?.assetClassPro || [])),
   };
 }
 
