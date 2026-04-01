@@ -14,7 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assets: {
+        Row: {
+          asset_class_pro: Json | null
+          buy_price: number
+          created_at: string
+          current_price: number
+          geography: Json | null
+          id: string
+          name: string
+          sectors: Json | null
+          shares: number
+          ticker: string
+          type: string
+        }
+        Insert: {
+          asset_class_pro?: Json | null
+          buy_price?: number
+          created_at?: string
+          current_price?: number
+          geography?: Json | null
+          id?: string
+          name: string
+          sectors?: Json | null
+          shares?: number
+          ticker: string
+          type: string
+        }
+        Update: {
+          asset_class_pro?: Json | null
+          buy_price?: number
+          created_at?: string
+          current_price?: number
+          geography?: Json | null
+          id?: string
+          name?: string
+          sectors?: Json | null
+          shares?: number
+          ticker?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      portfolio_settings: {
+        Row: {
+          api_key: string | null
+          cash_balance: number
+          created_at: string
+          historical_data: Json | null
+          id: string
+        }
+        Insert: {
+          api_key?: string | null
+          cash_balance?: number
+          created_at?: string
+          historical_data?: Json | null
+          id?: string
+        }
+        Update: {
+          api_key?: string | null
+          cash_balance?: number
+          created_at?: string
+          historical_data?: Json | null
+          id?: string
+        }
+        Relationships: []
+      }
+      robo_advisors: {
+        Row: {
+          allocations: Json | null
+          asset_class_pro: Json | null
+          created_at: string
+          geography: Json | null
+          id: string
+          invested_value: number
+          last_updated: string | null
+          movements: Json | null
+          name: string
+          sector_allocations: Json | null
+          sectors: Json | null
+          total_value: number
+        }
+        Insert: {
+          allocations?: Json | null
+          asset_class_pro?: Json | null
+          created_at?: string
+          geography?: Json | null
+          id?: string
+          invested_value?: number
+          last_updated?: string | null
+          movements?: Json | null
+          name: string
+          sector_allocations?: Json | null
+          sectors?: Json | null
+          total_value?: number
+        }
+        Update: {
+          allocations?: Json | null
+          asset_class_pro?: Json | null
+          created_at?: string
+          geography?: Json | null
+          id?: string
+          invested_value?: number
+          last_updated?: string | null
+          movements?: Json | null
+          name?: string
+          sector_allocations?: Json | null
+          sectors?: Json | null
+          total_value?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
