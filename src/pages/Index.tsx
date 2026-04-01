@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter } from 'lucide-react';
+import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
@@ -11,13 +11,20 @@ import RoboAdvisors from '@/components/portfolio/RoboAdvisors';
 import RoboImporter from '@/components/portfolio/RoboImporter';
 import SettingsPanel from '@/components/portfolio/SettingsPanel';
 import XRayDashboard from '@/components/portfolio/XRayDashboard';
-import FundClassificationEditor from '@/components/portfolio/FundClassificationEditor';
 
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 
 export default function Index() {
   const p = usePortfolio();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
+
+  if (p.loading) {
+    return (
+      <div className="dark min-h-screen bg-background text-foreground flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
@@ -31,9 +38,7 @@ export default function Index() {
             <div className="flex items-center gap-1.5">
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
               <Select value={entityFilter} onValueChange={v => setEntityFilter(v as EntityFilter)}>
-                <SelectTrigger className="w-40 h-8 text-xs border-border/50">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="w-40 h-8 text-xs border-border/50"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Cartera Global</SelectItem>
                   <SelectItem value="MyInvestor">MyInvestor</SelectItem>
@@ -42,7 +47,6 @@ export default function Index() {
                 </SelectContent>
               </Select>
             </div>
-            <span className="text-xs text-muted-foreground hidden sm:block">Gestión de Cartera</span>
           </div>
         </div>
       </header>
@@ -71,23 +75,13 @@ export default function Index() {
 
           <TabsContent value="dashboard" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              <div className="lg:col-span-2">
-                <AllocationChart data={p.distribution} />
-              </div>
-              <div className="lg:col-span-3">
-                <HistoryChart data={p.historicalData} />
-              </div>
+              <div className="lg:col-span-2"><AllocationChart data={p.distribution} /></div>
+              <div className="lg:col-span-3"><HistoryChart data={p.historicalData} /></div>
             </div>
           </TabsContent>
 
           <TabsContent value="fondos" className="space-y-4">
-            {/* AQUÍ ESTÁ EL CAMBIO: Se ha añadido onUpdate={p.updateAsset} */}
-            <FundsTable 
-              assets={p.assets} 
-              onAdd={p.addAsset} 
-              onRemove={p.removeAsset} 
-              onUpdate={p.updateAsset} 
-            />
+            <FundsTable assets={p.assets} onAdd={p.addAsset} onRemove={p.removeAsset} onUpdate={p.updateAsset} />
           </TabsContent>
 
           <TabsContent value="robos" className="space-y-4">
@@ -137,8 +131,14 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="xray" className="space-y-4">
-            <XRayDashboard getXrayByEntity={p.getXrayByEntity} entityFilter={entityFilter} assets={p.assets} roboAdvisors={p.roboAdvisors} />
-            <FundClassificationEditor assets={p.assets} onUpdateClassification={p.updateAssetClassification} />
+            <XRayDashboard
+              getXrayByEntity={p.getXrayByEntity}
+              entityFilter={entityFilter}
+              assets={p.assets}
+              roboAdvisors={p.roboAdvisors}
+              onUpdateAssetThreeDim={p.updateAssetThreeDim}
+              onUpdateRoboThreeDim={p.updateRoboThreeDim}
+            />
           </TabsContent>
 
           <TabsContent value="settings">
