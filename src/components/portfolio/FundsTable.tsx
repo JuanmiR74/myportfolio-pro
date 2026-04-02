@@ -175,7 +175,9 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
                       <span className="text-[10px] font-mono text-muted-foreground uppercase">{a.ticker}</span>
                     </div>
                   </TableCell>
-                  
+                  <TableCell>
+                    <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">{getEntity(a.type)}</span>
+                  </TableCell>
                   {/* APORTADO: Valor Absoluto */}
                   <TableCell className="text-right font-mono text-sm">
                     {isEditing ? (

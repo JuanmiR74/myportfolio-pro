@@ -200,6 +200,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
               return (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell className="text-right font-mono">{fmt(r.investedValue)}</TableCell>
                   <TableCell className="text-right font-mono">
                     {isEditing ? (
                       <div className="flex items-center gap-1 justify-end">
@@ -209,9 +210,11 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
                       </div>
                     ) : fmt(r.totalValue)}
                   </TableCell>
-                  <TableCell className="text-right font-mono">{fmt(r.investedValue)}</TableCell>
                   <TableCell className={`text-right font-mono font-medium ${pl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {pl >= 0 ? '+' : ''}{fmt(pl)}
+                    <div className="flex flex-col items-end">
+                      <span>{pl >= 0 ? '+' : ''}{fmt(pl)}</span>
+                      <span className="text-[10px] opacity-80">({r.investedValue > 0 ? ((pl / r.investedValue) * 100).toFixed(1) : '0.0'}%)</span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
