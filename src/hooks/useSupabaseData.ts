@@ -12,7 +12,7 @@ export function useSupabaseData() {
       const { data, error } = await supabase
         .from('assets')
         .select('*')
-        .eq('user_id' as any, user.id);
+        .eq('user_id' as any, user.id as any);
 
       if (error) throw error;
       return (data || []).map((r: any) => ({
@@ -77,7 +77,7 @@ export function useSupabaseData() {
         .from('assets')
         .update(dbUpdates)
         .eq('id', id)
-        .eq('user_id' as any, user.id)
+        .eq('user_id' as any, user.id as any)
         .select()
         .maybeSingle();
 
@@ -97,7 +97,7 @@ export function useSupabaseData() {
         .from('assets')
         .delete()
         .eq('id', id)
-        .eq('user_id' as any, user.id);
+        .eq('user_id' as any, user.id as any);
 
       if (error) throw error;
     } catch (error) {
