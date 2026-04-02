@@ -1,0 +1,114 @@
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+
+export interface Transaction {
+  id: string;
+  user_id: string;
+  asset_id?: string;
+  robo_advisor_id?: string;
+  amount: number;
+  date: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useTransactions() {
+  const { user } = useAuth();
+
+  const fetchTransactions = async (assetId?: string, roboAdvisorId?: string): Promise<Transaction[]> => {
+    if (!user) return [];
+
+    try {
+      let query = supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (assetId) {
+        query = query.eq('asset_id', assetId);
+      } else if (roboAdvisorId) {
+        query = query.eq('robo_advisor_id', roboAdvisorId);
+      }
+
+      const { data, error } = await query.order('date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
+  };
+
+  const calculateInvested = async (assetId?: string, roboAdvisorId?: string): Promise<number> => {
+    const transactions = await fetchTransactions(assetId, roboAdvisorId);
+    return transactions.reduce((sum, t) => sum + t.amount, 0);
+  };
+
+  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    if (!user) throw new Error('Usuario no autenticado');
+
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          ...transaction,
+          user_id: user.id,
+        })
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+      throw error;
+    }
+  };
+
+  const updateTransaction = async (id: string, updates: Partial<Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
+    if (!user) throw new Error('Usuario no autenticado');
+
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      throw error;
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    if (!user) throw new Error('Usuario no autenticado');
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      throw error;
+    }
+  };
+
+  return {
+    fetchTransactions,
+    calculateInvested,
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+  };
+}

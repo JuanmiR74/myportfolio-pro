@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, Plus, Filter, Pencil, Check, X } from 'lucide-react';
+import { Trash2, Plus, Filter, Pencil, Check, X, History } from 'lucide-react';
 import { Asset, AssetType } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { TransactionHistory } from '@/components/portfolio/TransactionHistory';
 
 interface Props {
   assets: Asset[];
@@ -26,6 +27,8 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
   const [open, setOpen] = useState(false);
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [historyAssetId, setHistoryAssetId] = useState<string | null>(null);
+  const [investedAmounts, setInvestedAmounts] = useState<Record<string, number>>({});
   const [editForm, setEditForm] = useState({ shares: '', buyPrice: '', currentPrice: '' });
   const [form, setForm] = useState({ name: '', ticker: '', type: 'Fondos MyInvestor' as AssetType, shares: '', buyPrice: '', currentPrice: '' });
 
@@ -71,9 +74,9 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
     return type;
   };
 
-  // CÁLCULOS TOTALES CORREGIDOS
+  // CÁLCULOS TOTALES CORREGIDOS - Usa invested amounts del historial si existen
   const totalValue = filtered.reduce((s, a) => s + (a.shares * a.currentPrice), 0);
-  const totalInvested = filtered.reduce((s, a) => s + a.buyPrice, 0); // Suma directa de importes absolutos
+  const totalInvested = filtered.reduce((s, a) => investedAmounts[a.id] ?? a.buyPrice, 0);
   const totalPL = totalValue - totalInvested;
 
   return (
@@ -178,12 +181,12 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
                   <TableCell>
                     <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">{getEntity(a.type)}</span>
                   </TableCell>
-                  {/* APORTADO: Valor Absoluto */}
+                  {/* APORTADO: Calculado del historial o valor por defecto */}
                   <TableCell className="text-right font-mono text-sm">
                     {isEditing ? (
-                      <Input className="h-7 w-24 text-right text-xs ml-auto font-bold" type="number" value={editForm.buyPrice} onChange={e => setEditForm({...editForm, buyPrice: e.target.value})} />
+                      <span className="font-semibold text-muted-foreground">{fmt(investedAmounts[a.id] ?? invested)}</span>
                     ) : (
-                      <span className="font-semibold">{fmt(invested)}</span>
+                      <span className="font-semibold">{fmt(investedAmounts[a.id] ?? invested)}</span>
                     )}
                   </TableCell>
 
@@ -227,6 +230,9 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
                         </>
                       ) : (
                         <>
+                          <Button variant="ghost" size="icon" onClick={() => setHistoryAssetId(a.id)} className="h-7 w-7 text-muted-foreground hover:text-primary" title="Ver historial de movimientos">
+                            <History className="h-3.5 w-3.5" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => startEditing(a)} className="h-7 w-7 text-muted-foreground hover:text-primary">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -243,6 +249,26 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
           </TableBody>
         </Table>
       </CardContent>
+
+      {/* Dialog para historial de transacciones */}
+      <Dialog open={historyAssetId !== null} onOpenChange={(isOpen) => !isOpen && setHistoryAssetId(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Historial de Movimientos
+              {historyAssetId && assets.find(a => a.id === historyAssetId)?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {historyAssetId && (
+            <TransactionHistory
+              assetId={historyAssetId}
+              onInvestedChanged={(amount) => {
+                setInvestedAmounts(prev => ({ ...prev, [historyAssetId]: amount }));
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
