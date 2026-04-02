@@ -185,9 +185,9 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
+              <TableHead className="text-right">Aportado</TableHead>
               <TableHead className="text-right">Valor Actual</TableHead>
-              <TableHead className="text-right">Invertido</TableHead>
-              <TableHead className="text-right">P/L</TableHead>
+              <TableHead className="text-right">Rentabilidad</TableHead>
               <TableHead>Distribución</TableHead>
               <TableHead className="text-right">Última Act.</TableHead>
               <TableHead />
