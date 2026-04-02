@@ -92,9 +92,9 @@ export function usePortfolio() {
 
       try {
         const [{ data: dbAssets }, { data: dbRobos }, { data: dbSettings }] = await Promise.all([
-          supabase.from('assets').select('*').eq('user_id' as any, user.id),
-          supabase.from('robo_advisors').select('*').eq('user_id' as any, user.id),
-          supabase.from('portfolio_settings').select('*').eq('user_id' as any, user.id).maybeSingle(),
+          (supabase.from('assets').select('*') as any).eq('user_id', user.id),
+          (supabase.from('robo_advisors').select('*') as any).eq('user_id', user.id),
+          (supabase.from('portfolio_settings').select('*') as any).eq('user_id', user.id).maybeSingle(),
         ]);
 
         setState({
