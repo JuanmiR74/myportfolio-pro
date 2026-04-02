@@ -73,10 +73,10 @@ export function useSupabaseData() {
       if (updates.buyPrice !== undefined) dbUpdates.buy_price = updates.buyPrice;
       if (updates.currentPrice !== undefined) dbUpdates.current_price = updates.currentPrice;
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from('assets')
         .update(dbUpdates)
-        .eq('id', id)
+        .eq('id', id) as any)
         .eq('user_id', user.id)
         .select()
         .maybeSingle();
