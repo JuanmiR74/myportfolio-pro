@@ -27,6 +27,7 @@ export type Database = {
           shares: number
           ticker: string
           type: string
+          user_id: string | null
         }
         Insert: {
           asset_class_pro?: Json | null
@@ -40,6 +41,7 @@ export type Database = {
           shares?: number
           ticker: string
           type: string
+          user_id?: string | null
         }
         Update: {
           asset_class_pro?: Json | null
@@ -53,6 +55,7 @@ export type Database = {
           shares?: number
           ticker?: string
           type?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -63,6 +66,7 @@ export type Database = {
           created_at: string
           historical_data: Json | null
           id: string
+          user_id: string | null
         }
         Insert: {
           api_key?: string | null
@@ -70,6 +74,7 @@ export type Database = {
           created_at?: string
           historical_data?: Json | null
           id?: string
+          user_id?: string | null
         }
         Update: {
           api_key?: string | null
@@ -77,6 +82,7 @@ export type Database = {
           created_at?: string
           historical_data?: Json | null
           id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -94,6 +100,7 @@ export type Database = {
           sector_allocations: Json | null
           sectors: Json | null
           total_value: number
+          user_id: string | null
         }
         Insert: {
           allocations?: Json | null
@@ -108,6 +115,7 @@ export type Database = {
           sector_allocations?: Json | null
           sectors?: Json | null
           total_value?: number
+          user_id?: string | null
         }
         Update: {
           allocations?: Json | null
@@ -122,6 +130,7 @@ export type Database = {
           sector_allocations?: Json | null
           sectors?: Json | null
           total_value?: number
+          user_id?: string | null
         }
         Relationships: []
       }

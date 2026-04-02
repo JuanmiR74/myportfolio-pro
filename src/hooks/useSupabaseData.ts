@@ -15,7 +15,20 @@ export function useSupabaseData() {
         .eq('user_id', user.id);
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        ticker: r.ticker,
+        type: r.type,
+        shares: Number(r.shares),
+        buyPrice: Number(r.buy_price),
+        currentPrice: Number(r.current_price),
+        threeDim: {
+          geography: (r.geography as any[]) || [],
+          sectors: (r.sectors as any[]) || [],
+          assetClassPro: (r.asset_class_pro as any[]) || [],
+        },
+      }));
     } catch (error) {
       console.error('Error fetching assets:', error);
       return [];
@@ -29,10 +42,14 @@ export function useSupabaseData() {
       const { data, error } = await supabase
         .from('assets')
         .insert({
-          ...asset,
+          name: asset.name,
+          ticker: asset.ticker,
+          type: asset.type,
+          shares: asset.shares,
+          buy_price: asset.buyPrice,
+          current_price: asset.currentPrice,
           user_id: user.id,
-          id: crypto.randomUUID(),
-        })
+        } as any)
         .select()
         .maybeSingle();
 
@@ -48,9 +65,17 @@ export function useSupabaseData() {
     if (!user) throw new Error('Usuario no autenticado');
 
     try {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.ticker !== undefined) dbUpdates.ticker = updates.ticker;
+      if (updates.type !== undefined) dbUpdates.type = updates.type;
+      if (updates.shares !== undefined) dbUpdates.shares = updates.shares;
+      if (updates.buyPrice !== undefined) dbUpdates.buy_price = updates.buyPrice;
+      if (updates.currentPrice !== undefined) dbUpdates.current_price = updates.currentPrice;
+
       const { data, error } = await supabase
         .from('assets')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
