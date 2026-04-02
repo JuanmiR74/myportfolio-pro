@@ -125,7 +125,7 @@ export function usePortfolio() {
 
   const removeAsset = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('assets').delete().eq('id', id).eq('user_id' as any, user.id as any);
+    await (supabase.from('assets').delete() as any).eq('id', id).eq('user_id', user.id);
     setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
   }, [user]);
 
@@ -136,7 +136,7 @@ export function usePortfolio() {
       const updated = newAssets.find(a => a.id === id);
       if (updated) {
         const { user_id, ...row } = assetToRow(updated, user.id) as any;
-        supabase.from('assets').update(row).eq('id', id).eq('user_id' as any, user.id as any).then();
+        supabase.from('assets').update(row).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
@@ -156,7 +156,7 @@ export function usePortfolio() {
           geography: threeDim.geography as any,
           sectors: threeDim.sectors as any,
           asset_class_pro: threeDim.assetClassPro as any,
-        }).eq('id', id).eq('user_id' as any, user.id as any).then();
+        }).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
@@ -176,7 +176,7 @@ export function usePortfolio() {
       const updated = newRobos.find(r => r.id === id);
       if (updated) {
         const { user_id, ...row } = roboToRow(updated, user.id) as any;
-        supabase.from('robo_advisors').update(row).eq('id', id).eq('user_id' as any, user.id as any).then();
+        supabase.from('robo_advisors').update(row).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
@@ -192,7 +192,7 @@ export function usePortfolio() {
           geography: threeDim.geography as any,
           sectors: threeDim.sectors as any,
           asset_class_pro: threeDim.assetClassPro as any,
-        }).eq('id', id).eq('user_id' as any, user.id as any).then();
+        }).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
@@ -200,7 +200,7 @@ export function usePortfolio() {
 
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id' as any, user.id as any);
+    await (supabase.from('robo_advisors').delete() as any).eq('id', id).eq('user_id', user.id);
     setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
   }, [user]);
 
@@ -222,7 +222,7 @@ export function usePortfolio() {
       const updated = prev.assets.map(a => {
         if (prices[a.ticker]) {
           const newA = { ...a, currentPrice: prices[a.ticker] };
-          supabase.from('assets').update({ current_price: prices[a.ticker] } as any).eq('id', a.id).eq('user_id' as any, user.id as any).then();
+          supabase.from('assets').update({ current_price: prices[a.ticker] } as any).eq('id', a.id).eq('user_id', user.id).then();
           return newA;
         }
         return a;
