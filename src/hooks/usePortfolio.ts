@@ -125,7 +125,7 @@ export function usePortfolio() {
 
   const removeAsset = useCallback(async (id: string) => {
     if (!user) return;
-    await (supabase.from('assets').delete() as any).eq('id', id).eq('user_id', user.id);
+    await (supabase.from('assets').delete().eq('id', id) as any).eq('user_id', user.id);
     setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
   }, [user]);
 
@@ -200,7 +200,7 @@ export function usePortfolio() {
 
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
-    await (supabase.from('robo_advisors').delete() as any).eq('id', id).eq('user_id', user.id);
+    await (supabase.from('robo_advisors').delete().eq('id', id) as any).eq('user_id', user.id);
     setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
   }, [user]);
 
