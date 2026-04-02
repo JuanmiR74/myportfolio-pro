@@ -145,6 +145,7 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[220px]">Fondo / ISIN</TableHead>
+              <TableHead>Entidad</TableHead>
               <TableHead className="text-right">Aportado</TableHead>
               <TableHead className="text-right">Uds.</TableHead>
               <TableHead className="text-right">Precio Act.</TableHead>
