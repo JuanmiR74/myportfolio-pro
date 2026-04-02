@@ -4,109 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-const generateHistoricalData = () => {
-  const data: { date: string; value: number }[] = [];
-  let value = 45000;
-  const now = new Date();
-  for (let i = 365; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    value += (Math.random() - 0.45) * 800;
-    value = Math.max(30000, value);
-    data.push({ date: d.toISOString().split('T')[0], value: Math.round(value * 100) / 100 });
-  }
-  return data;
-};
-
-const defaultAssets: Asset[] = [
-  {
-    id: crypto.randomUUID(), name: 'Fidelity MSCI World', ticker: 'IE00BYX5NX33', type: 'Fondos MyInvestor',
-    shares: 38.91, buyPrice: 25.70, currentPrice: 27.15,
-    threeDim: {
-      geography: [{ name: 'EEUU', weight: 60 }, { name: 'Europa', weight: 20 }, { name: 'Global', weight: 20 }],
-      sectors: [{ name: 'Tecnología', weight: 30 }, { name: 'Financiero', weight: 20 }, { name: 'Salud', weight: 15 }, { name: 'Consumo', weight: 15 }, { name: 'Industria', weight: 20 }],
-      assetClassPro: [{ name: 'RV - Blend', weight: 100 }],
-    },
-  },
-  {
-    id: crypto.randomUUID(), name: 'Vanguard Emergentes', ticker: 'IE0031786696', type: 'Fondos MyInvestor',
-    shares: 5.68, buyPrice: 176.05, currentPrice: 169.80,
-    threeDim: {
-      geography: [{ name: 'Emergentes', weight: 100 }],
-      sectors: [{ name: 'Tecnología', weight: 25 }, { name: 'Financiero', weight: 25 }, { name: 'Consumo', weight: 20 }, { name: 'Energía', weight: 15 }, { name: 'Otro', weight: 15 }],
-      assetClassPro: [{ name: 'RV - Blend', weight: 100 }],
-    },
-  },
-  {
-    id: crypto.randomUUID(), name: 'BGF World Healthscience', ticker: 'LU0171307068', type: 'Fondos BBK',
-    shares: 18.52, buyPrice: 54.00, currentPrice: 56.30,
-    threeDim: {
-      geography: [{ name: 'EEUU', weight: 65 }, { name: 'Europa', weight: 25 }, { name: 'Global', weight: 10 }],
-      sectors: [{ name: 'Salud', weight: 100 }],
-      assetClassPro: [{ name: 'RV - Growth', weight: 100 }],
-    },
-  },
-  {
-    id: crypto.randomUUID(), name: 'KBI Global Infrastructure', ticker: 'IE00BKPVHQ28', type: 'Fondos BBK',
-    shares: 62.11, buyPrice: 16.10, currentPrice: 16.85,
-    threeDim: {
-      geography: [{ name: 'EEUU', weight: 45 }, { name: 'Europa', weight: 35 }, { name: 'Global', weight: 20 }],
-      sectors: [{ name: 'Infraestructuras', weight: 100 }],
-      assetClassPro: [{ name: 'RV - Value', weight: 100 }],
-    },
-  },
-  {
-    id: crypto.randomUUID(), name: 'Vontobel Commodity H (EURHDG)', ticker: 'LU0415415636', type: 'Fondos BBK',
-    shares: 5.49, buyPrice: 182.15, currentPrice: 178.40,
-    threeDim: {
-      geography: [{ name: 'Global', weight: 100 }],
-      sectors: [{ name: 'Commodities', weight: 100 }],
-      assetClassPro: [{ name: 'Commodities', weight: 100 }],
-    },
-  },
-];
-
-const defaultRobos: RoboAdvisor[] = [
-  {
-    id: crypto.randomUUID(), name: 'MyInvestor - Cartera Metal', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01',
-    allocations: [
-      { assetClass: 'Renta Variable', weight: 80 },
-      { assetClass: 'Renta Fija', weight: 15 },
-      { assetClass: 'Commodities', weight: 5 },
-    ],
-    sectorAllocations: [
-      { sector: 'Global', weight: 60 },
-      { sector: 'EEUU', weight: 25 },
-      { sector: 'Emergentes', weight: 15 },
-    ],
-    threeDim: {
-      geography: [{ name: 'EEUU', weight: 45 }, { name: 'Europa', weight: 25 }, { name: 'Emergentes', weight: 20 }, { name: 'Global', weight: 10 }],
-      sectors: [{ name: 'Tecnología', weight: 30 }, { name: 'Financiero', weight: 20 }, { name: 'Consumo', weight: 20 }, { name: 'Commodities', weight: 10 }, { name: 'Otro', weight: 20 }],
-      assetClassPro: [{ name: 'RV - Blend', weight: 60 }, { name: 'RF - Sovereign', weight: 15 }, { name: 'Commodities', weight: 5 }, { name: 'RV - Large Cap', weight: 20 }],
-    },
-  },
-  {
-    id: crypto.randomUUID(), name: 'Openbank - Cartera Taipei', totalValue: 1000, investedValue: 1000, lastUpdated: '2026-03-01',
-    allocations: [
-      { assetClass: 'Renta Variable', weight: 70 },
-      { assetClass: 'Renta Fija', weight: 25 },
-      { assetClass: 'Monetario', weight: 5 },
-    ],
-    sectorAllocations: [
-      { sector: 'Global', weight: 50 },
-      { sector: 'Europa', weight: 30 },
-      { sector: 'Emergentes', weight: 20 },
-    ],
-    threeDim: {
-      geography: [{ name: 'Europa', weight: 40 }, { name: 'EEUU', weight: 30 }, { name: 'Emergentes', weight: 20 }, { name: 'Global', weight: 10 }],
-      sectors: [{ name: 'Financiero', weight: 25 }, { name: 'Consumo', weight: 25 }, { name: 'Industria', weight: 20 }, { name: 'Tecnología', weight: 15 }, { name: 'Otro', weight: 15 }],
-      assetClassPro: [{ name: 'RV - Blend', weight: 50 }, { name: 'RF - Corporate', weight: 15 }, { name: 'RF - Sovereign', weight: 10 }, { name: 'Monetario', weight: 5 }, { name: 'RV - Large Cap', weight: 20 }],
-    },
-  },
-];
-
 // Convert Asset to DB row
-function assetToRow(a: Asset): Record<string, unknown> {
+function assetToRow(a: Asset, userId: string): Record<string, unknown> {
   return {
     id: a.id,
     name: a.name,
@@ -118,6 +17,7 @@ function assetToRow(a: Asset): Record<string, unknown> {
     geography: JSON.parse(JSON.stringify(a.threeDim?.geography || [])),
     sectors: JSON.parse(JSON.stringify(a.threeDim?.sectors || [])),
     asset_class_pro: JSON.parse(JSON.stringify(a.threeDim?.assetClassPro || [])),
+    user_id: userId,
   };
 }
 
@@ -139,7 +39,7 @@ function rowToAsset(r: any): Asset {
   };
 }
 
-function roboToRow(r: RoboAdvisor): Record<string, unknown> {
+function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
   return {
     id: r.id,
     name: r.name,
@@ -152,6 +52,7 @@ function roboToRow(r: RoboAdvisor): Record<string, unknown> {
     geography: JSON.parse(JSON.stringify(r.threeDim?.geography || [])),
     sectors: JSON.parse(JSON.stringify(r.threeDim?.sectors || [])),
     asset_class_pro: JSON.parse(JSON.stringify(r.threeDim?.assetClassPro || [])),
+    user_id: userId,
   };
 }
 
@@ -178,91 +79,36 @@ export function usePortfolio() {
   const [state, setState] = useState<PortfolioState>({
     assets: [],
     roboAdvisors: [],
-    cashBalance: 5000,
-    apiKey: '9JQOWFM3S0MQJZHX',
-    historicalData: generateHistoricalData(),
+    cashBalance: 0,
+    apiKey: '',
+    historicalData: [],
   });
   const [loading, setLoading] = useState(true);
-  const migrated = useRef(false);
 
-  // Load from Supabase on mount, with one-time localStorage migration
+  // Load from Supabase on mount
   useEffect(() => {
     const init = async () => {
-      if (!user) return;
+      if (!user) { setLoading(false); return; }
 
       try {
-        // Check if DB has data for this user
-        const { data: dbAssets } = await supabase.from('assets').select('*').eq('user_id', user.id);
-        const { data: dbRobos } = await supabase.from('robo_advisors').select('*').eq('user_id', user.id);
-        const { data: dbSettings } = await supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle();
+        const [{ data: dbAssets }, { data: dbRobos }, { data: dbSettings }] = await Promise.all([
+          supabase.from('assets').select('*').eq('user_id' as any, user.id),
+          supabase.from('robo_advisors').select('*').eq('user_id' as any, user.id),
+          supabase.from('portfolio_settings').select('*').eq('user_id' as any, user.id).maybeSingle(),
+        ]);
 
-        if (dbAssets && dbAssets.length > 0) {
-          // DB has data, use it
-          setState({
-            assets: dbAssets.map(rowToAsset),
-            roboAdvisors: (dbRobos || []).map(rowToRobo),
-            cashBalance: dbSettings ? Number(dbSettings.cash_balance) : 5000,
-            apiKey: dbSettings?.api_key || '9JQOWFM3S0MQJZHX',
-            historicalData: (dbSettings?.historical_data as any[]) || generateHistoricalData(),
-          });
-          // Clean localStorage if exists
-          if (localStorage.getItem('portfolio-state')) {
-            localStorage.removeItem('portfolio-state');
-          }
-        } else {
-          // No DB data: check localStorage for migration
-          const saved = localStorage.getItem('portfolio-state');
-          let assetsToSeed: Asset[];
-          let robosToSeed: RoboAdvisor[];
-          let cash = 5000;
-          let apiKey = '9JQOWFM3S0MQJZHX';
-          let hist = generateHistoricalData();
+        setState({
+          assets: (dbAssets || []).map(rowToAsset),
+          roboAdvisors: (dbRobos || []).map(rowToRobo),
+          cashBalance: dbSettings ? Number(dbSettings.cash_balance) : 0,
+          apiKey: dbSettings?.api_key || '',
+          historicalData: (dbSettings?.historical_data as any[]) || [],
+        });
 
-          if (saved && !migrated.current) {
-            migrated.current = true;
-            const parsed = JSON.parse(saved) as PortfolioState;
-            // Convert legacy classification to threeDim
-            assetsToSeed = parsed.assets.map(a => ({
-              ...a,
-              id: a.id || crypto.randomUUID(),
-              threeDim: a.threeDim || (a.classification ? legacyToThreeDim(a.classification) : emptyThreeDim()),
-            }));
-            robosToSeed = parsed.roboAdvisors.map(r => ({
-              ...r,
-              id: r.id || crypto.randomUUID(),
-              threeDim: r.threeDim || emptyThreeDim(),
-            }));
-            cash = parsed.cashBalance;
-            apiKey = parsed.apiKey;
-            hist = parsed.historicalData;
-            toast.info('Migrando datos de localStorage a la nube...');
-          } else {
-            assetsToSeed = defaultAssets;
-            robosToSeed = defaultRobos;
-          }
-
-          // Seed to DB
-          for (const a of assetsToSeed) {
-            await supabase.from('assets').upsert({ ...assetToRow(a), user_id: user.id } as any);
-          }
-          for (const r of robosToSeed) {
-            await supabase.from('robo_advisors').upsert({ ...roboToRow(r), user_id: user.id } as any);
-          }
-          await supabase.from('portfolio_settings').upsert({
-            user_id: user.id,
-            cash_balance: cash,
-            api_key: apiKey,
-            historical_data: hist as any,
-          });
-
-          setState({ assets: assetsToSeed, roboAdvisors: robosToSeed, cashBalance: cash, apiKey, historicalData: hist });
-          localStorage.removeItem('portfolio-state');
-          if (saved) toast.success('Datos migrados a Lovable Cloud');
-        }
+        // Clean up any leftover localStorage
+        localStorage.removeItem('portfolio-state');
       } catch (err) {
         console.error('Error loading portfolio from Supabase:', err);
-        // Fallback
-        setState(prev => ({ ...prev, assets: defaultAssets, roboAdvisors: defaultRobos }));
       } finally {
         setLoading(false);
       }
@@ -270,21 +116,16 @@ export function usePortfolio() {
     init();
   }, [user]);
 
-  // Helper to sync state + DB
-  const syncState = useCallback((newState: PortfolioState) => {
-    setState(newState);
-  }, []);
-
   const addAsset = useCallback(async (asset: Omit<Asset, 'id'>) => {
     if (!user) return;
     const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
-    await supabase.from('assets').insert({ ...assetToRow(newAsset), user_id: user.id } as any);
+    await supabase.from('assets').insert(assetToRow(newAsset, user.id) as any);
     setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
   }, [user]);
 
   const removeAsset = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('assets').delete().eq('id', id).eq('user_id', user.id);
+    await supabase.from('assets').delete().eq('id', id).eq('user_id' as any, user.id);
     setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
   }, [user]);
 
@@ -294,7 +135,8 @@ export function usePortfolio() {
       const newAssets = prev.assets.map(a => a.id === id ? { ...a, ...updates } : a);
       const updated = newAssets.find(a => a.id === id);
       if (updated) {
-        supabase.from('assets').update(assetToRow(updated) as any).eq('id', id).eq('user_id', user.id).then();
+        const { user_id, ...row } = assetToRow(updated, user.id) as any;
+        supabase.from('assets').update(row).eq('id', id).eq('user_id' as any, user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
@@ -314,7 +156,7 @@ export function usePortfolio() {
           geography: threeDim.geography as any,
           sectors: threeDim.sectors as any,
           asset_class_pro: threeDim.assetClassPro as any,
-        }).eq('id', id).eq('user_id', user.id).then();
+        }).eq('id', id).eq('user_id' as any, user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
@@ -323,7 +165,7 @@ export function usePortfolio() {
   const addRoboAdvisor = useCallback(async (robo: Omit<RoboAdvisor, 'id'>) => {
     if (!user) return;
     const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
-    await supabase.from('robo_advisors').insert({ ...roboToRow(newRobo), user_id: user.id } as any);
+    await supabase.from('robo_advisors').insert(roboToRow(newRobo, user.id) as any);
     setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
   }, [user]);
 
@@ -333,7 +175,8 @@ export function usePortfolio() {
       const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r);
       const updated = newRobos.find(r => r.id === id);
       if (updated) {
-        supabase.from('robo_advisors').update(roboToRow(updated) as any).eq('id', id).eq('user_id', user.id).then();
+        const { user_id, ...row } = roboToRow(updated, user.id) as any;
+        supabase.from('robo_advisors').update(row).eq('id', id).eq('user_id' as any, user.id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
@@ -349,7 +192,7 @@ export function usePortfolio() {
           geography: threeDim.geography as any,
           sectors: threeDim.sectors as any,
           asset_class_pro: threeDim.assetClassPro as any,
-        }).eq('id', id).eq('user_id', user.id).then();
+        }).eq('id', id).eq('user_id' as any, user.id).then();
       }
       return { ...prev, roboAdvisors: newRobos };
     });
@@ -357,19 +200,19 @@ export function usePortfolio() {
 
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id', user.id);
+    await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id' as any, user.id);
     setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
   }, [user]);
 
   const setApiKey = useCallback(async (apiKey: string) => {
     if (!user) return;
-    await supabase.from('portfolio_settings').update({ api_key: apiKey }).eq('user_id', user.id);
+    await supabase.from('portfolio_settings').upsert({ user_id: user.id, api_key: apiKey } as any);
     setState(prev => ({ ...prev, apiKey }));
   }, [user]);
 
   const setCashBalance = useCallback(async (cashBalance: number) => {
     if (!user) return;
-    await supabase.from('portfolio_settings').update({ cash_balance: cashBalance }).eq('user_id', user.id);
+    await supabase.from('portfolio_settings').upsert({ user_id: user.id, cash_balance: cashBalance } as any);
     setState(prev => ({ ...prev, cashBalance }));
   }, [user]);
 
@@ -379,7 +222,7 @@ export function usePortfolio() {
       const updated = prev.assets.map(a => {
         if (prices[a.ticker]) {
           const newA = { ...a, currentPrice: prices[a.ticker] };
-          supabase.from('assets').update({ current_price: prices[a.ticker] }).eq('id', a.id).eq('user_id', user.id).then();
+          supabase.from('assets').update({ current_price: prices[a.ticker] } as any).eq('id', a.id).eq('user_id' as any, user.id).then();
           return newA;
         }
         return a;
