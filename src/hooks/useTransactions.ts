@@ -1,5 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export interface Transaction {
   id: string;
@@ -20,8 +21,8 @@ export function useTransactions() {
     if (!user) return [];
 
     try {
-      let query = supabase
-        .from('transactions')
+      let query = (supabase
+        .from('transactions') as any)
         .select('*')
         .eq('user_id', user.id);
 
@@ -33,8 +34,11 @@ export function useTransactions() {
 
       const { data, error } = await query.order('date', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (error) {
+        toast.error(`Error cargando transacciones: ${error.message}`);
+        throw error;
+      }
+      return (data || []) as Transaction[];
     } catch (error) {
       console.error('Error fetching transactions:', error);
       return [];
@@ -43,15 +47,15 @@ export function useTransactions() {
 
   const calculateInvested = async (assetId?: string, roboAdvisorId?: string): Promise<number> => {
     const transactions = await fetchTransactions(assetId, roboAdvisorId);
-    return transactions.reduce((sum, t) => sum + t.amount, 0);
+    return transactions.reduce((sum, t) => sum + Number(t.amount), 0);
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     if (!user) throw new Error('Usuario no autenticado');
 
     try {
-      const { data, error } = await supabase
-        .from('transactions')
+      const { data, error } = await (supabase
+        .from('transactions') as any)
         .insert({
           ...transaction,
           user_id: user.id,
@@ -59,7 +63,10 @@ export function useTransactions() {
         .select()
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        toast.error(`Error añadiendo transacción: ${error.message}`);
+        throw error;
+      }
       return data;
     } catch (error) {
       console.error('Error adding transaction:', error);
@@ -71,15 +78,18 @@ export function useTransactions() {
     if (!user) throw new Error('Usuario no autenticado');
 
     try {
-      const { data, error } = await supabase
-        .from('transactions')
+      const { data, error } = await (supabase
+        .from('transactions') as any)
         .update(updates)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        toast.error(`Error actualizando transacción: ${error.message}`);
+        throw error;
+      }
       return data;
     } catch (error) {
       console.error('Error updating transaction:', error);
@@ -91,13 +101,16 @@ export function useTransactions() {
     if (!user) throw new Error('Usuario no autenticado');
 
     try {
-      const { error } = await supabase
-        .from('transactions')
+      const { error } = await (supabase
+        .from('transactions') as any)
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        toast.error(`Error eliminando transacción: ${error.message}`);
+        throw error;
+      }
     } catch (error) {
       console.error('Error deleting transaction:', error);
       throw error;
