@@ -134,6 +134,57 @@ export type Database = {
         }
         Relationships: []
       }
+      transactions: {
+        Row: {
+          amount: number
+          asset_id: string | null
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          robo_advisor_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          asset_id?: string | null
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          robo_advisor_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          asset_id?: string | null
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          robo_advisor_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_robo_advisor_id_fkey"
+            columns: ["robo_advisor_id"]
+            isOneToOne: false
+            referencedRelation: "robo_advisors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
