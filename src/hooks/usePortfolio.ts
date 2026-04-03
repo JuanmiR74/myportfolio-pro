@@ -91,24 +91,28 @@ export function usePortfolio() {
       if (!user) { setLoading(false); return; }
 
       try {
-        const [{ data: dbAssets }, { data: dbRobos }, { data: dbSettings }] = await Promise.all([
+        const [assetsRes, robosRes, settingsRes] = await Promise.all([
           (supabase.from('assets').select('*') as any).eq('user_id', user.id),
           (supabase.from('robo_advisors').select('*') as any).eq('user_id', user.id),
           (supabase.from('portfolio_settings').select('*') as any).eq('user_id', user.id).maybeSingle(),
         ]);
 
+        if (assetsRes.error) toast.error(`Error cargando activos: ${assetsRes.error.message}`);
+        if (robosRes.error) toast.error(`Error cargando robo-advisors: ${robosRes.error.message}`);
+        if (settingsRes.error) toast.error(`Error cargando ajustes: ${settingsRes.error.message}`);
+
         setState({
-          assets: (dbAssets || []).map(rowToAsset),
-          roboAdvisors: (dbRobos || []).map(rowToRobo),
-          cashBalance: dbSettings ? Number(dbSettings.cash_balance) : 0,
-          apiKey: dbSettings?.api_key || '',
-          historicalData: (dbSettings?.historical_data as any[]) || [],
+          assets: (assetsRes.data || []).map(rowToAsset),
+          roboAdvisors: (robosRes.data || []).map(rowToRobo),
+          cashBalance: settingsRes.data ? Number(settingsRes.data.cash_balance) : 0,
+          apiKey: settingsRes.data?.api_key || '',
+          historicalData: (settingsRes.data?.historical_data as any[]) || [],
         });
 
-        // Clean up any leftover localStorage
         localStorage.removeItem('portfolio-state');
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error loading portfolio from Supabase:', err);
+        toast.error(`Error cargando cartera: ${err?.message || 'Error desconocido'}`);
       } finally {
         setLoading(false);
       }
