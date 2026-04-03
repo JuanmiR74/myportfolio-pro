@@ -5,28 +5,31 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 // Convert Asset to DB row
+
+
 function assetToRow(a: Asset, userId: string): Record<string, unknown> {
   return {
     id: a.id,
     name: a.name,
-    ticker: a.ticker,
+    symbol: a.ticker, // Antes decía ticker, ahora symbol (como en tu DB)
     type: a.type,
     shares: a.shares,
     buy_price: a.buyPrice,
     current_price: a.currentPrice,
-    geography: JSON.parse(JSON.stringify(a.threeDim?.geography || [])),
-    sectors: JSON.parse(JSON.stringify(a.threeDim?.sectors || [])),
-    asset_class_pro: JSON.parse(JSON.stringify(a.threeDim?.assetClassPro || [])),
+    geography: a.threeDim?.geography || [],
+    sectors: a.threeDim?.sectors || [],
+    asset_class_pro: a.threeDim?.assetClassPro || [],
     user_id: userId,
   };
 }
 
 // Convert DB row to Asset
+
 function rowToAsset(r: any): Asset {
   return {
     id: r.id,
     name: r.name,
-    ticker: r.ticker,
+    ticker: r.symbol || r.ticker, 
     type: r.type,
     shares: Number(r.shares),
     buyPrice: Number(r.buy_price),
@@ -38,6 +41,8 @@ function rowToAsset(r: any): Asset {
     },
   };
 }
+
+
 
 function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
   return {
