@@ -11,7 +11,7 @@ function assetToRow(a: Asset, userId: string): Record<string, unknown> {
   return {
     id: a.id,
     name: a.name,
-    symbol: a.ticker, // Antes decía ticker, ahora symbol (como en tu DB)
+    ticker: a.ticker, //
     type: a.type,
     shares: a.shares,
     buy_price: a.buyPrice,
@@ -29,7 +29,7 @@ function rowToAsset(r: any): Asset {
   return {
     id: r.id,
     name: r.name,
-    ticker: r.symbol || r.ticker, 
+    ticker: r.ticker, 
     type: r.type,
     shares: Number(r.shares),
     buyPrice: Number(r.buy_price),
