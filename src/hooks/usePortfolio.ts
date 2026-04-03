@@ -48,6 +48,7 @@ function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
   return {
     id: r.id,
     name: r.name,
+    entity: r.entity || 'Sin Entidad',
     total_value: r.totalValue,
     invested_value: r.investedValue,
     last_updated: r.lastUpdated,
@@ -65,6 +66,7 @@ function rowToRobo(r: any): RoboAdvisor {
   return {
     id: r.id,
     name: r.name,
+    entity: r.entity || '', // <--- AÑADE ESTA LÍNEA AQUÍ TAMBIÉN
     totalValue: Number(r.total_value),
     investedValue: Number(r.invested_value),
     lastUpdated: r.last_updated || '',
