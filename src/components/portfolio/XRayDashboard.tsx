@@ -34,6 +34,7 @@ interface Props {
   roboAdvisors: RoboAdvisor[];
   onUpdateAssetThreeDim: (id: string, td: ThreeDimensionClassification) => void;
   onUpdateRoboThreeDim: (id: string, td: ThreeDimensionClassification) => void;
+  onUpdateRoboSubFunds: (id: string, subFunds: RoboSubFund[]) => void;
 }
 
 function fmt(n: number) {
