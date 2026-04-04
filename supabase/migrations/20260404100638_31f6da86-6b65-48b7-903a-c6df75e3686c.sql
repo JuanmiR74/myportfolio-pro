@@ -1,0 +1,1 @@
+ALTER TABLE public.robo_advisors ADD COLUMN IF NOT EXISTS sub_funds jsonb DEFAULT '[]'::jsonb;

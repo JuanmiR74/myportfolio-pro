@@ -99,6 +99,7 @@ export type Database = {
           name: string
           sector_allocations: Json | null
           sectors: Json | null
+          sub_funds: Json | null
           total_value: number
           user_id: string | null
         }
@@ -114,6 +115,7 @@ export type Database = {
           name: string
           sector_allocations?: Json | null
           sectors?: Json | null
+          sub_funds?: Json | null
           total_value?: number
           user_id?: string | null
         }
@@ -129,6 +131,7 @@ export type Database = {
           name?: string
           sector_allocations?: Json | null
           sectors?: Json | null
+          sub_funds?: Json | null
           total_value?: number
           user_id?: string | null
         }
