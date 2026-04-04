@@ -16,6 +16,7 @@ interface Props {
   existingAssets?: Asset[];
   onConfirmImport: (data: {
     name: string;
+    entity: string;
     totalValue: number;
     investedValue: number;
     allocations: { assetClass: string; weight: number }[];
@@ -82,6 +83,7 @@ export default function RoboImporter({ existingMovements, existingAssets, onConf
 
       onConfirmImport({
         name: 'MyInvestor - Cartera Metal',
+        entity: 'MyInvestor',
         totalValue: totalFundValue + summary.currentCash,
         investedValue: summary.investedValue,
         allocations: allocations as { assetClass: string; weight: number }[],

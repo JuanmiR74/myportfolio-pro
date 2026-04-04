@@ -74,6 +74,7 @@ export interface RoboSubFund {
 export interface RoboAdvisor {
   id: string;
   name: string;
+  entity: string;
   totalValue: number;
   investedValue: number;
   lastUpdated: string;

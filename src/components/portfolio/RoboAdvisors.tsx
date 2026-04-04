@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Upload, Trash2, Pencil, PieChart, Table2, X } from 'lucide-react';
+import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X } from 'lucide-react';
 import { RoboAdvisor, RoboMovement, AssetClass, SectorGeo, RoboAdvisorAllocation, RoboAdvisorSectorAllocation } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ function fmt(n: number) {
 
 export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', totalValue: '', investedValue: '' });
+  const [form, setForm] = useState({ name: '', entity: '', totalValue: '', investedValue: '' });
   const [editId, setEditId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [allocDialogId, setAllocDialogId] = useState<string | null>(null);
@@ -39,14 +39,15 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
-    if (!form.name || !form.totalValue) return;
+    if (!form.name || !form.entity || !form.totalValue) return;
     onAdd({
       name: form.name,
+      entity: form.entity,
       totalValue: parseFloat(form.totalValue),
       investedValue: parseFloat(form.investedValue || form.totalValue),
       lastUpdated: new Date().toISOString().split('T')[0],
     });
-    setForm({ name: '', totalValue: '', investedValue: '' });
+    setForm({ name: '', entity: '', totalValue: '', investedValue: '' });
     setOpen(false);
   };
 
@@ -172,6 +173,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
               <DialogHeader><DialogTitle>Añadir Robo-Advisor</DialogTitle></DialogHeader>
               <div className="grid gap-3">
                 <div><Label>Nombre</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="MyInvestor - Cartera Metal" /></div>
+                <div><Label>Entidad</Label><Input value={form.entity} onChange={e => setForm({ ...form, entity: e.target.value })} placeholder="MyInvestor, BBK, etc." /></div>
                 <div><Label>Valor actual (€)</Label><Input type="number" value={form.totalValue} onChange={e => setForm({ ...form, totalValue: e.target.value })} /></div>
                 <div><Label>Valor invertido (€)</Label><Input type="number" value={form.investedValue} onChange={e => setForm({ ...form, investedValue: e.target.value })} /></div>
                 <Button onClick={handleSubmit}>Guardar</Button>
