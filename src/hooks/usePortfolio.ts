@@ -312,16 +312,36 @@ export function usePortfolio() {
     const filteredRobos = (entity === 'all' || entity === 'Robo-Advisors') ? state.roboAdvisors : [];
     filteredRobos.forEach(r => {
       const value = r.totalValue;
-      const td = r.threeDim;
-      if (td?.geography?.length) {
-        td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
-      } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
-      if (td?.sectors?.length) {
-        td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
-      } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
-      if (td?.assetClassPro?.length) {
-        td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
-      } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
+      const hasSubFunds = r.subFunds && r.subFunds.length > 0;
+
+      if (hasSubFunds) {
+        // Use sub-funds for granular X-Ray: each sub-fund has its own threeDim
+        r.subFunds!.forEach(sf => {
+          const sfValue = value * sf.weightPct / 100;
+          const td = sf.threeDim;
+          if (td?.geography?.length) {
+            td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + sfValue * g.weight / 100; });
+          } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + sfValue; }
+          if (td?.sectors?.length) {
+            td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + sfValue * s.weight / 100; });
+          } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + sfValue; }
+          if (td?.assetClassPro?.length) {
+            td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + sfValue * ac.weight / 100; });
+          } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + sfValue; }
+        });
+      } else {
+        // Fallback: use robo-level threeDim
+        const td = r.threeDim;
+        if (td?.geography?.length) {
+          td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
+        } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
+        if (td?.sectors?.length) {
+          td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
+        } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
+        if (td?.assetClassPro?.length) {
+          td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
+        } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
+      }
     });
 
     if (entity === 'all' && state.cashBalance > 0) {
