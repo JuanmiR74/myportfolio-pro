@@ -24,6 +24,7 @@ interface Props {
   assetName: string;
   initial?: ThreeDimensionClassification;
   onSave: (td: ThreeDimensionClassification) => void;
+  children?: React.ReactNode;
 }
 
 type EditRow = { name: string; weight: string };
@@ -61,7 +62,7 @@ function DimensionSection<T extends string>({ label, options, rows, setRows, col
   );
 }
 
-export default function ThreeDimEditor({ open, onClose, assetName, initial, onSave }: Props) {
+export default function ThreeDimEditor({ open, onClose, assetName, initial, onSave, children }: Props) {
   const [geo, setGeo] = useState<EditRow[]>(
     initial?.geography?.map(g => ({ name: g.name, weight: g.weight.toString() })) || [{ name: 'Global', weight: '100' }]
   );
@@ -103,6 +104,7 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
           <DimensionSection label="Sector" options={SECTOR_OPTIONS} rows={sec} setRows={setSec} color="bg-emerald-500" />
           <DimensionSection label="Asset Class Profesional" options={ACP_OPTIONS} rows={acp} setRows={setAcp} color="bg-amber-500" />
         </div>
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave}>Guardar</Button>

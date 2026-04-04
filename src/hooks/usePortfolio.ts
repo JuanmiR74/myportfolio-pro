@@ -48,7 +48,6 @@ function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
   return {
     id: r.id,
     name: r.name,
-    entity: r.entity || 'Sin Entidad',
     total_value: r.totalValue,
     invested_value: r.investedValue,
     last_updated: r.lastUpdated,
@@ -58,6 +57,7 @@ function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
     geography: JSON.parse(JSON.stringify(r.threeDim?.geography || [])),
     sectors: JSON.parse(JSON.stringify(r.threeDim?.sectors || [])),
     asset_class_pro: JSON.parse(JSON.stringify(r.threeDim?.assetClassPro || [])),
+    sub_funds: JSON.parse(JSON.stringify(r.subFunds || [])),
     user_id: userId,
   };
 }
@@ -66,7 +66,6 @@ function rowToRobo(r: any): RoboAdvisor {
   return {
     id: r.id,
     name: r.name,
-    entity: r.entity || '', // <--- AÑADE ESTA LÍNEA AQUÍ TAMBIÉN
     totalValue: Number(r.total_value),
     investedValue: Number(r.invested_value),
     lastUpdated: r.last_updated || '',
@@ -78,6 +77,7 @@ function rowToRobo(r: any): RoboAdvisor {
       sectors: (r.sectors as any[]) || [],
       assetClassPro: (r.asset_class_pro as any[]) || [],
     },
+    subFunds: (r.sub_funds as any[]) || [],
   };
 }
 
@@ -209,6 +209,17 @@ export function usePortfolio() {
     });
   }, [user]);
 
+  const updateRoboSubFunds = useCallback(async (id: string, subFunds: import('@/types/portfolio').RoboSubFund[]) => {
+    if (!user) return;
+    setState(prev => {
+      const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, subFunds } : r);
+      supabase.from('robo_advisors').update({
+        sub_funds: JSON.parse(JSON.stringify(subFunds)) as any,
+      }).eq('id', id).eq('user_id', user.id).then();
+      return { ...prev, roboAdvisors: newRobos };
+    });
+  }, [user]);
+
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
     await (supabase.from('robo_advisors').delete().eq('id', id) as any).eq('user_id', user.id);
@@ -301,16 +312,36 @@ export function usePortfolio() {
     const filteredRobos = (entity === 'all' || entity === 'Robo-Advisors') ? state.roboAdvisors : [];
     filteredRobos.forEach(r => {
       const value = r.totalValue;
-      const td = r.threeDim;
-      if (td?.geography?.length) {
-        td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
-      } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
-      if (td?.sectors?.length) {
-        td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
-      } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
-      if (td?.assetClassPro?.length) {
-        td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
-      } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
+      const hasSubFunds = r.subFunds && r.subFunds.length > 0;
+
+      if (hasSubFunds) {
+        // Use sub-funds for granular X-Ray: each sub-fund has its own threeDim
+        r.subFunds!.forEach(sf => {
+          const sfValue = value * sf.weightPct / 100;
+          const td = sf.threeDim;
+          if (td?.geography?.length) {
+            td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + sfValue * g.weight / 100; });
+          } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + sfValue; }
+          if (td?.sectors?.length) {
+            td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + sfValue * s.weight / 100; });
+          } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + sfValue; }
+          if (td?.assetClassPro?.length) {
+            td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + sfValue * ac.weight / 100; });
+          } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + sfValue; }
+        });
+      } else {
+        // Fallback: use robo-level threeDim
+        const td = r.threeDim;
+        if (td?.geography?.length) {
+          td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
+        } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
+        if (td?.sectors?.length) {
+          td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
+        } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
+        if (td?.assetClassPro?.length) {
+          td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
+        } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
+      }
     });
 
     if (entity === 'all' && state.cashBalance > 0) {
@@ -360,6 +391,7 @@ export function usePortfolio() {
     addRoboAdvisor,
     updateRoboAdvisor,
     updateRoboThreeDim,
+    updateRoboSubFunds,
     removeRoboAdvisor,
     setApiKey,
     setCashBalance,
