@@ -62,7 +62,7 @@ function DimensionSection<T extends string>({ label, options, rows, setRows, col
   );
 }
 
-export default function ThreeDimEditor({ open, onClose, assetName, initial, onSave }: Props) {
+export default function ThreeDimEditor({ open, onClose, assetName, initial, onSave, children }: Props) {
   const [geo, setGeo] = useState<EditRow[]>(
     initial?.geography?.map(g => ({ name: g.name, weight: g.weight.toString() })) || [{ name: 'Global', weight: '100' }]
   );
