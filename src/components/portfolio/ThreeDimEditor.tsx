@@ -24,6 +24,7 @@ interface Props {
   assetName: string;
   initial?: ThreeDimensionClassification;
   onSave: (td: ThreeDimensionClassification) => void;
+  children?: React.ReactNode;
 }
 
 type EditRow = { name: string; weight: string };
