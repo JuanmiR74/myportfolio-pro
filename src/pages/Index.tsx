@@ -140,6 +140,7 @@ export default function Index() {
               roboAdvisors={p.roboAdvisors}
               onUpdateAssetThreeDim={p.updateAssetThreeDim}
               onUpdateRoboThreeDim={p.updateRoboThreeDim}
+              onUpdateRoboSubFunds={p.updateRoboSubFunds}
             />
           </TabsContent>
 

@@ -5,8 +5,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Pencil } from 'lucide-react';
-import { Asset, RoboAdvisor, ThreeDimensionClassification } from '@/types/portfolio';
+import { Asset, RoboAdvisor, ThreeDimensionClassification, RoboSubFund } from '@/types/portfolio';
 import ThreeDimEditor from '@/components/portfolio/ThreeDimEditor';
+import SubFundsEditor from '@/components/portfolio/SubFundsEditor';
 
 interface DataItem { name: string; value: number; fill: string; }
 
