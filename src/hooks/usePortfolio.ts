@@ -57,6 +57,7 @@ function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
     geography: JSON.parse(JSON.stringify(r.threeDim?.geography || [])),
     sectors: JSON.parse(JSON.stringify(r.threeDim?.sectors || [])),
     asset_class_pro: JSON.parse(JSON.stringify(r.threeDim?.assetClassPro || [])),
+    sub_funds: JSON.parse(JSON.stringify(r.subFunds || [])),
     user_id: userId,
   };
 }
