@@ -120,7 +120,7 @@ function DonutChart({ title, data }: { title: string; data: DataItem[] }) {
   );
 }
 
-export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, roboAdvisors, onUpdateAssetThreeDim, onUpdateRoboThreeDim }: Props) {
+export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, roboAdvisors, onUpdateAssetThreeDim, onUpdateRoboThreeDim, onUpdateRoboSubFunds }: Props) {
   const { geography, sector, assetClassPro } = getXrayByEntity(entityFilter);
   const [editingItem, setEditingItem] = useState<XRayAsset | null>(null);
 
@@ -154,7 +154,6 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
   }, [assets, roboAdvisors, entityFilter]);
 
   const filterLabel = entityFilter === 'all' ? 'Cartera Global' : entityFilter;
-
   const hasDim = (td?: ThreeDimensionClassification) => td && (td.geography.length > 0 || td.sectors.length > 0 || td.assetClassPro.length > 0);
 
   const handleSaveThreeDim = (td: ThreeDimensionClassification) => {
@@ -163,6 +162,10 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
     else onUpdateRoboThreeDim(editingItem.id, td);
     setEditingItem(null);
   };
+
+  const editingRobo = editingItem?.sourceType === 'robo'
+    ? roboAdvisors.find(r => r.id === editingItem.id)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -177,11 +180,10 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
         <HorizontalBarSection title="Distribución Sectorial" data={sector} subtitle="Exposición por sector/industria" />
       </div>
 
-      {/* Activos Desglosados with inline classification editing */}
       <Card className="border-border/50 bg-card/80 backdrop-blur">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Activos Desglosados</CardTitle>
-          <p className="text-xs text-muted-foreground">Pulsa ✏️ para editar las 3 dimensiones de clasificación de cada activo.</p>
+          <p className="text-xs text-muted-foreground">Pulsa ✏️ para editar clasificación 3D y desglose de fondos internos de cada Robo-Advisor.</p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -194,41 +196,53 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
                 <TableHead className="text-right text-xs">Valor (€)</TableHead>
                 <TableHead className="text-right text-xs">% Peso</TableHead>
                 <TableHead className="text-xs">Clasificación</TableHead>
+                <TableHead className="text-xs">Sub-fondos</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {xrayAssets.map((a, i) => (
-                <TableRow key={`${a.id}-${i}`}>
-                  <TableCell className="text-sm font-medium">{a.name}</TableCell>
-                  <TableCell className="text-xs font-mono text-muted-foreground">{a.isin}</TableCell>
-                  <TableCell>
-                    <Badge variant={a.origin === 'Fondo Individual' ? 'default' : 'secondary'} className="text-[10px]">{a.origin}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{a.entity}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{fmt(a.value)}</TableCell>
-                  <TableCell className="text-right font-mono text-sm font-semibold">{a.weightPct.toFixed(1)}%</TableCell>
-                  <TableCell>
-                    {hasDim(a.threeDim) ? (
-                      <div className="flex flex-wrap gap-0.5">
-                        {a.threeDim!.geography.slice(0, 2).map(g => (
-                          <span key={g.name} className="text-[9px] bg-blue-500/20 text-blue-300 px-1 py-0.5 rounded">{g.name} {g.weight}%</span>
-                        ))}
-                        {a.threeDim!.sectors.slice(0, 2).map(s => (
-                          <span key={s.name} className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.5 rounded">{s.name} {s.weight}%</span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">Sin clasificar</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingItem(a)}>
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {xrayAssets.map((a, i) => {
+                const robo = a.sourceType === 'robo' ? roboAdvisors.find(r => r.id === a.id) : null;
+                const subFundCount = robo?.subFunds?.length || 0;
+                return (
+                  <TableRow key={`${a.id}-${i}`}>
+                    <TableCell className="text-sm font-medium">{a.name}</TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{a.isin}</TableCell>
+                    <TableCell>
+                      <Badge variant={a.origin === 'Fondo Individual' ? 'default' : 'secondary'} className="text-[10px]">{a.origin}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.entity}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{fmt(a.value)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm font-semibold">{a.weightPct.toFixed(1)}%</TableCell>
+                    <TableCell>
+                      {hasDim(a.threeDim) ? (
+                        <div className="flex flex-wrap gap-0.5">
+                          {a.threeDim!.geography.slice(0, 2).map(g => (
+                            <span key={g.name} className="text-[9px] bg-primary/20 text-primary px-1 py-0.5 rounded">{g.name} {g.weight}%</span>
+                          ))}
+                          {a.threeDim!.sectors.slice(0, 2).map(s => (
+                            <span key={s.name} className="text-[9px] bg-accent/40 text-accent-foreground px-1 py-0.5 rounded">{s.name} {s.weight}%</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Sin clasificar</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {a.sourceType === 'robo' ? (
+                        <span className="text-[10px] text-muted-foreground">{subFundCount > 0 ? `${subFundCount} fondos` : '—'}</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingItem(a)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -241,7 +255,15 @@ export default function XRayDashboard({ getXrayByEntity, entityFilter, assets, r
           assetName={editingItem.name}
           initial={editingItem.threeDim}
           onSave={handleSaveThreeDim}
-        />
+        >
+          {editingRobo && (
+            <SubFundsEditor
+              subFunds={editingRobo.subFunds || []}
+              onSave={(subFunds) => onUpdateRoboSubFunds(editingRobo.id, subFunds)}
+              roboName={editingRobo.name}
+            />
+          )}
+        </ThreeDimEditor>
       )}
     </div>
   );
