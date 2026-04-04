@@ -65,7 +65,6 @@ function rowToRobo(r: any): RoboAdvisor {
   return {
     id: r.id,
     name: r.name,
-    entity: r.entity || '', // <--- AÑADE ESTA LÍNEA AQUÍ TAMBIÉN
     totalValue: Number(r.total_value),
     investedValue: Number(r.invested_value),
     lastUpdated: r.last_updated || '',

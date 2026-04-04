@@ -63,6 +63,14 @@ export interface RoboMovement {
   isin?: string;
 }
 
+export interface RoboSubFund {
+  id: string;
+  isin: string;
+  name: string;
+  weightPct: number; // % of the robo-advisor's total value
+  threeDim?: ThreeDimensionClassification;
+}
+
 export interface RoboAdvisor {
   id: string;
   name: string;
@@ -73,6 +81,7 @@ export interface RoboAdvisor {
   sectorAllocations?: RoboAdvisorSectorAllocation[];
   movements?: RoboMovement[];
   threeDim?: ThreeDimensionClassification;
+  subFunds?: RoboSubFund[];
 }
 
 export interface PortfolioState {
