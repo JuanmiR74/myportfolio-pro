@@ -104,6 +104,7 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
           <DimensionSection label="Sector" options={SECTOR_OPTIONS} rows={sec} setRows={setSec} color="bg-emerald-500" />
           <DimensionSection label="Asset Class Profesional" options={ACP_OPTIONS} rows={acp} setRows={setAcp} color="bg-amber-500" />
         </div>
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave}>Guardar</Button>
