@@ -391,6 +391,7 @@ export function usePortfolio() {
     addRoboAdvisor,
     updateRoboAdvisor,
     updateRoboThreeDim,
+    updateRoboSubFunds,
     removeRoboAdvisor,
     setApiKey,
     setCashBalance,
