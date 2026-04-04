@@ -77,6 +77,7 @@ function rowToRobo(r: any): RoboAdvisor {
       sectors: (r.sectors as any[]) || [],
       assetClassPro: (r.asset_class_pro as any[]) || [],
     },
+    subFunds: (r.sub_funds as any[]) || [],
   };
 }
 
