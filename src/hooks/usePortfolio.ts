@@ -209,6 +209,17 @@ export function usePortfolio() {
     });
   }, [user]);
 
+  const updateRoboSubFunds = useCallback(async (id: string, subFunds: import('@/types/portfolio').RoboSubFund[]) => {
+    if (!user) return;
+    setState(prev => {
+      const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, subFunds } : r);
+      supabase.from('robo_advisors').update({
+        sub_funds: JSON.parse(JSON.stringify(subFunds)) as any,
+      }).eq('id', id).eq('user_id', user.id).then();
+      return { ...prev, roboAdvisors: newRobos };
+    });
+  }, [user]);
+
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
     await (supabase.from('robo_advisors').delete().eq('id', id) as any).eq('user_id', user.id);
