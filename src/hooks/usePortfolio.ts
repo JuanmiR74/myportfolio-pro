@@ -247,19 +247,47 @@ const txs = newRobo.movements.map(m => ({
     }
   }, [user]);
 
-  const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
-    if (!user) return;
-    setState(prev => {
-      const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r);
-      const updated = newRobos.find(r => r.id === id);
-      if (updated) {
-        const { user_id, ...row } = roboToRow(updated, user.id) as any;
-        supabase.from('robo_advisors').update(row).eq('id', id).eq('user_id', user.id)
-          .then(({ error }) => error && toast.error("Error al actualizar Robo-Advisor"));
-      }
-      return { ...prev, roboAdvisors: newRobos };
-    });
-  }, [user]);
+const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
+  if (!user) return;
+
+  try {
+    // 1. Actualizar datos básicos del Robo-Advisor
+    const { user_id, ...row } = roboToRow({ ...updates, id } as RoboAdvisor, user.id) as any;
+    const { error: roboError } = await supabase.from('robo_advisors').update(row).eq('id', id);
+    if (roboError) throw roboError;
+
+    // 2. Si los movimientos han cambiado, sincronizar la tabla transactions
+    if (updates.movements) {
+      // Borramos los anteriores
+      await supabase.from('transactions').delete().eq('robo_id', id);
+
+      // Insertamos los nuevos con el formato de la tabla
+      const txs = updates.movements.map(m => ({
+        user_id: user.id,
+        robo_id: id,
+        fecha_operacion: m.Fecha,
+        movimiento: m.Concepto,
+        importe: Number(m.Importe),
+        comision: Number(m.Comisión || 0),
+        isin: m.ISIN || null,
+        saldo_resultante: Number(m.Saldo || 0)
+      }));
+
+      const { error: txError } = await supabase.from('transactions').insert(txs);
+      if (txError) throw txError;
+    }
+
+    // 3. Actualizar estado local
+    setState(prev => ({
+      ...prev,
+      roboAdvisors: prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r)
+    }));
+
+    toast.success("Cambios guardados en la base de datos");
+  } catch (err: any) {
+    toast.error("Error al actualizar: " + err.message);
+  }
+}, [user]);
 
   const updateRoboSubFunds = useCallback(async (id: string, subFunds: any[]) => {
     if (!user) return;
