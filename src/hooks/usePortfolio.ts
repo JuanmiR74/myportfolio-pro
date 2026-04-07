@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification } from '@/types/portfolio';
+import { Asset, RoboAdvisor, PortfolioState, ThreeDimensionClassification } from '@/types/portfolio';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -43,18 +43,15 @@ function rowToAsset(r: any): Asset {
   };
 }
 
-
 function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
-  // Aseguramos que la fecha de actualización sea válida para Postgres
   const now = new Date().toISOString();
-  
   return {
     id: r.id,
     name: r.name,
     entity: r.entity || '',
     total_value: Number(r.totalValue) || 0,
     invested_value: Number(r.investedValue) || 0,
-    last_updated: r.lastUpdated || now, // ISO format es siempre seguro
+    last_updated: r.lastUpdated || now,
     allocations: r.allocations || [],
     sector_allocations: r.sectorAllocations || [],
     movements: r.movements || [],
@@ -65,8 +62,6 @@ function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
     user_id: userId,
   };
 }
-
-
 
 function rowToRobo(r: any): RoboAdvisor {
   return {
@@ -143,14 +138,19 @@ export function usePortfolio() {
     if (!user) return;
     const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
     const { error } = await supabase.from('assets').insert(assetToRow(newAsset, user.id));
-    if (error) toast.error(error.message);
-    else setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
+    if (error) {
+      toast.error("Error al añadir activo: " + error.message);
+    } else {
+      setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
+      toast.success("Activo añadido correctamente");
+    }
   }, [user]);
 
   const removeAsset = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('assets').delete().eq('id', id).eq('user_id', user.id);
-    setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
+    const { error } = await supabase.from('assets').delete().eq('id', id).eq('user_id', user.id);
+    if (error) toast.error("Error al eliminar");
+    else setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
   }, [user]);
 
   const updateAsset = useCallback(async (id: string, updates: Partial<Asset>) => {
@@ -159,9 +159,9 @@ export function usePortfolio() {
       const newAssets = prev.assets.map(a => a.id === id ? { ...a, ...updates } : a);
       const updated = newAssets.find(a => a.id === id);
       if (updated) {
-        const row = assetToRow(updated, user.id);
-        delete row.user_id;
-        supabase.from('assets').update(row).eq('id', id).eq('user_id', user.id).then();
+        const { user_id, ...row } = assetToRow(updated, user.id) as any;
+        supabase.from('assets').update(row).eq('id', id).eq('user_id', user.id)
+          .then(({ error }) => error && toast.error("Error al actualizar en BD"));
       }
       return { ...prev, assets: newAssets };
     });
@@ -178,47 +178,35 @@ export function usePortfolio() {
       const { error: roboError } = await supabase.from('robo_advisors').insert(roboToRow(newRobo, user.id));
       if (roboError) throw roboError;
 
-      // 2. Guardar movimientos en la tabla transactions (X-Ray Ready)
-// --- BUSCA ESTO DENTRO DE addRoboAdvisor ---
+      // 2. Guardar movimientos en la tabla transactions
+      if (newRobo.movements && newRobo.movements.length > 0) {
+        const formatDate = (dateStr: string) => {
+          if (!dateStr || !dateStr.includes('/')) return null;
+          const [day, month, year] = dateStr.split('/');
+          return `${year}-${month}-${day}`;
+        };
 
-if (newRobo.movements && newRobo.movements.length > 0) {
-  const txs = newRobo.movements.map(m => {
-    // Función para convertir DD/MM/YYYY a YYYY-MM-DD
-    const formatDate = (dateStr: string) => {
-      if (!dateStr || !dateStr.includes('/')) return null;
-      const [day, month, year] = dateStr.split('/');
-      return `${year}-${month}-${day}`;
-    };
-
-    return {
-      user_id: user.id,
-      robo_id: roboId,
-      // Mapeo directo de tu fichero a la tabla
-      movimiento: m.movement || m.movimiento || '', 
-      importe: Number(m.amount) || Number(m.importe) || 0,
-      saldo: Number(m.saldo) || 0,
-      fecha_operacion: formatDate(m.date || m.fecha_operacion),
-      fecha_valor: formatDate(m.fecha_valor || m.date),
-      // Mantenemos estas por compatibilidad si quieres
-      type: (m.movement || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
-      amount: Math.abs(Number(m.amount || m.importe)) || 0,
-      date: formatDate(m.date || m.fecha_operacion)
-    };
-  });
-  
-  const { error: txError } = await supabase.from('transactions').insert(txs);
-  if (txError) {
-    console.error("Error detallado:", txError);
-    toast.error("Error al guardar movimientos: " + txError.message);
-  }
-}
-  
-  await supabase.from('transactions').insert(txs);
-}
+        const txs = newRobo.movements.map(m => ({
+          user_id: user.id,
+          robo_id: roboId,
+          movimiento: m.movement || m.movimiento || '', 
+          importe: Number(m.amount) || Number(m.importe) || 0,
+          saldo: Number(m.saldo) || 0,
+          fecha_operacion: formatDate(m.date || m.fecha_operacion),
+          fecha_valor: formatDate(m.fecha_valor || m.date),
+          type: (m.movement || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
+          amount: Math.abs(Number(m.amount || m.importe)) || 0,
+          date: formatDate(m.date || m.fecha_operacion)
+        }));
+        
+        const { error: txError } = await supabase.from('transactions').insert(txs);
+        if (txError) throw txError;
+      }
 
       setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
-      toast.success("Robo-Advisor guardado correctamente");
+      toast.success("Robo-Advisor y movimientos guardados");
     } catch (err: any) {
+      console.error(err);
       toast.error(`Error al guardar: ${err.message}`);
     }
   }, [user]);
@@ -229,9 +217,9 @@ if (newRobo.movements && newRobo.movements.length > 0) {
       const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r);
       const updated = newRobos.find(r => r.id === id);
       if (updated) {
-        const row = roboToRow(updated, user.id);
-        delete row.user_id;
-        supabase.from('robo_advisors').update(row).eq('id', id).eq('user_id', user.id).then();
+        const { user_id, ...row } = roboToRow(updated, user.id) as any;
+        supabase.from('robo_advisors').update(row).eq('id', id).eq('user_id', user.id)
+          .then(({ error }) => error && toast.error("Error al actualizar Robo-Advisor"));
       }
       return { ...prev, roboAdvisors: newRobos };
     });
@@ -241,18 +229,19 @@ if (newRobo.movements && newRobo.movements.length > 0) {
     if (!user) return;
     setState(prev => {
       const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, subFunds } : r);
-      supabase.from('robo_advisors').update({ sub_funds: subFunds }).eq('id', id).eq('user_id', user.id).then();
+      supabase.from('robo_advisors').update({ sub_funds: subFunds }).eq('id', id).eq('user_id', user.id)
+        .then(({ error }) => error && toast.error("Error al actualizar sub-fondos"));
       return { ...prev, roboAdvisors: newRobos };
     });
   }, [user]);
 
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id', user.id);
-    setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
+    const { error } = await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id', user.id);
+    if (error) toast.error("Error al eliminar Robo-Advisor");
+    else setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
   }, [user]);
 
-  // Ajustes y Precios
   const setApiKey = useCallback(async (apiKey: string) => {
     if (!user) return;
     await supabase.from('portfolio_settings').upsert({ user_id: user.id, api_key: apiKey });
@@ -280,7 +269,7 @@ if (newRobo.movements && newRobo.movements.length > 0) {
     });
   }, [user]);
 
-  // --- CÁLCULOS (MEMOIZED) ---
+  // --- CÁLCULOS ---
 
   const summary = useMemo(() => {
     const assetsValue = state.assets.reduce((s, a) => s + a.shares * a.currentPrice, 0);
@@ -299,7 +288,7 @@ if (newRobo.movements && newRobo.movements.length > 0) {
       assetsValue,
       robosValue,
       cashBalance: state.cashBalance,
-      xirr: 0 // Simplificado para estabilidad
+      xirr: 0 
     };
   }, [state]);
 
