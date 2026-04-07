@@ -186,19 +186,18 @@ if (newRobo.movements && newRobo.movements.length > 0) {
     return `${year}-${month}-${day}`;
   };
 
-  const txs = newRobo.movements.map(m => ({
-    user_id: user.id,
-    robo_id: roboId,
-    // Mapeo exacto a tus campos locales
-    fecha_operacion: formatDate(m.date || m.fecha_operacion || m.Fecha),
-    movimiento: m.movement || m.movimiento || m.Concepto || '', 
-    importe: Number(m.amount || m.importe || m.Importe) || 0,
-    comision: Number(m.comision || m.Comisión) || 0,
-    isin: m.isin || m.ISIN || null,
-    // Campos extra para lógica interna (opcionales según tu DB)
-    type: (m.movement || m.Concepto || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
-    saldo: Number(m.saldo) || 0,
-  }));
+const txs = newRobo.movements.map(m => ({
+  user_id: user.id,
+  robo_id: roboId,
+  fecha_operacion: formatDate(m.date || m.fecha_operacion || m.Fecha),
+  movimiento: m.movement || m.movimiento || m.Concepto || '', 
+  importe: Number(m.amount || m.importe || m.Importe) || 0,
+  comision: Number(m.comision || m.Comisión) || 0,
+  isin: m.isin || m.ISIN || null,
+  tipo_operacion: (m.movement || m.Concepto || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
+  saldo_resultante: Number(m.saldo || m.Saldo) || 0, // <--- CAMBIADO AQUÍ
+}));
+
   
   const { error: txError } = await supabase.from('transactions').insert(txs);
   if (txError) throw txError;
