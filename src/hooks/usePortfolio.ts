@@ -43,14 +43,18 @@ function rowToAsset(r: any): Asset {
   };
 }
 
+
 function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
+  // Aseguramos que la fecha de actualización sea válida para Postgres
+  const now = new Date().toISOString();
+  
   return {
     id: r.id,
     name: r.name,
     entity: r.entity || '',
     total_value: Number(r.totalValue) || 0,
     invested_value: Number(r.investedValue) || 0,
-    last_updated: r.lastUpdated || new Date().toISOString(),
+    last_updated: r.lastUpdated || now, // ISO format es siempre seguro
     allocations: r.allocations || [],
     sector_allocations: r.sectorAllocations || [],
     movements: r.movements || [],
@@ -61,6 +65,8 @@ function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
     user_id: userId,
   };
 }
+
+
 
 function rowToRobo(r: any): RoboAdvisor {
   return {
@@ -173,17 +179,29 @@ export function usePortfolio() {
       if (roboError) throw roboError;
 
       // 2. Guardar movimientos en la tabla transactions (X-Ray Ready)
-      if (newRobo.movements && newRobo.movements.length > 0) {
-        const txs = newRobo.movements.map(m => ({
-          user_id: user.id,
-          robo_id: roboId,
-          type: m.type,
-          amount: m.amount,
-          date: m.date,
-          isin: m.isin || null
-        }));
-        await supabase.from('transactions').insert(txs);
-      }
+// --- BUSCA ESTO DENTRO DE addRoboAdvisor ---
+
+if (newRobo.movements && newRobo.movements.length > 0) {
+  const txs = newRobo.movements.map(m => {
+    // Función interna para convertir DD/MM/YYYY a YYYY-MM-DD
+    let formattedDate = m.date;
+    if (typeof m.date === 'string' && m.date.includes('/')) {
+      const [day, month, year] = m.date.split('/');
+      formattedDate = `${year}-${month}-${day}`;
+    }
+
+    return {
+      user_id: user.id,
+      robo_id: roboId,
+      type: m.type,
+      amount: m.amount,
+      date: formattedDate, // Ahora la fecha es segura
+      isin: m.isin || null
+    };
+  });
+  
+  await supabase.from('transactions').insert(txs);
+}
 
       setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
       toast.success("Robo-Advisor guardado correctamente");
