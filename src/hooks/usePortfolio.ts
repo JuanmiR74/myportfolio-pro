@@ -179,29 +179,30 @@ export function usePortfolio() {
       if (roboError) throw roboError;
 
       // 2. Guardar movimientos en la tabla transactions
-      if (newRobo.movements && newRobo.movements.length > 0) {
-        const formatDate = (dateStr: string) => {
-          if (!dateStr || !dateStr.includes('/')) return null;
-          const [day, month, year] = dateStr.split('/');
-          return `${year}-${month}-${day}`;
-        };
+if (newRobo.movements && newRobo.movements.length > 0) {
+  const formatDate = (dateStr: string) => {
+    if (!dateStr || !dateStr.includes('/')) return null;
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month}-${day}`;
+  };
 
-        const txs = newRobo.movements.map(m => ({
-          user_id: user.id,
-          robo_id: roboId,
-          movimiento: m.movement || m.movimiento || '', 
-          importe: Number(m.amount) || Number(m.importe) || 0,
-          saldo: Number(m.saldo) || 0,
-          fecha_operacion: formatDate(m.date || m.fecha_operacion),
-          fecha_valor: formatDate(m.fecha_valor || m.date),
-          type: (m.movement || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
-          amount: Math.abs(Number(m.amount || m.importe)) || 0,
-          date: formatDate(m.date || m.fecha_operacion)
-        }));
-        
-        const { error: txError } = await supabase.from('transactions').insert(txs);
-        if (txError) throw txError;
-      }
+  const txs = newRobo.movements.map(m => ({
+    user_id: user.id,
+    robo_id: roboId,
+    // Mapeo exacto a tus campos locales
+    fecha_operacion: formatDate(m.date || m.fecha_operacion || m.Fecha),
+    movimiento: m.movement || m.movimiento || m.Concepto || '', 
+    importe: Number(m.amount || m.importe || m.Importe) || 0,
+    comision: Number(m.comision || m.Comisión) || 0,
+    isin: m.isin || m.ISIN || null,
+    // Campos extra para lógica interna (opcionales según tu DB)
+    type: (m.movement || m.Concepto || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
+    saldo: Number(m.saldo) || 0,
+  }));
+  
+  const { error: txError } = await supabase.from('transactions').insert(txs);
+  if (txError) throw txError;
+}
 
       setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
       toast.success("Robo-Advisor y movimientos guardados");
