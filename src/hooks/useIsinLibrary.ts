@@ -69,7 +69,7 @@ export function useIsinLibrary() {
         if (error) throw error;
         setEntries(prev => prev.map(e => e.id === existing.id ? { ...e, name, assetType, geography: row.geography, sectors: row.sectors, assetClassPro: row.asset_class_pro } : e));
       } else {
-        const { data, error } = await (supabase.from('isin_library').insert(row) as any).select().maybeSingle();
+        const { data, error } = await (supabase.from('isin_library').insert(row as any) as any).select().maybeSingle();
         if (error) throw error;
         if (data) setEntries(prev => [...prev, rowToEntry(data)]);
       }
