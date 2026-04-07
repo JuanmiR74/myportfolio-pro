@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Asset, RoboAdvisor, PortfolioState, ThreeDimensionClassification } from '@/types/portfolio';
+import { Asset, RoboAdvisor, PortfolioState, ThreeDimensionClassification, RoboMovement } from '@/types/portfolio';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -89,6 +89,16 @@ const emptyThreeDim = (): ThreeDimensionClassification => ({
   assetClassPro: []
 });
 
+// Helper para asegurar formato fecha YYYY-MM-DD
+const ensureIsoDate = (dateStr: any) => {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+  if (dateStr.includes('/')) {
+    const [d, m, y] = dateStr.split('/');
+    return `${y}-${m}-${d}`;
+  }
+  return dateStr; // Asumimos YYYY-MM-DD
+};
+
 // --- HOOK PRINCIPAL ---
 
 export function usePortfolio() {
@@ -102,83 +112,67 @@ export function usePortfolio() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Carga inicial
-  useEffect(() => {
-    const init = async () => {
-      if (!user) { setLoading(false); return; }
-      try {
+  const fetchPortfolio = useCallback(async () => {
+    if (!user) { setLoading(false); return; }
+    try {
+      const [assetsRes, robosRes, settingsRes, transRes] = await Promise.all([
+        supabase.from('assets').select('*').eq('user_id', user.id),
+        supabase.from('robo_advisors').select('*').eq('user_id', user.id),
+        supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase.from('transactions').select('*').eq('user_id', user.id),
+      ]);
 
-
-// ... dentro del init del useEffect
-const [assetsRes, robosRes, settingsRes, transRes] = await Promise.all([
-  supabase.from('assets').select('*').eq('user_id', user.id),
-  supabase.from('robo_advisors').select('*').eq('user_id', user.id),
-  supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle(),
-  supabase.from('transactions').select('*').eq('user_id', user.id), // Cargamos movimientos
-]);
-
-// Mapeamos los robos e inyectamos sus transacciones correspondientes
-const robosConMovimientos = (robosRes.data || []).map(r => {
-  const roboBase = rowToRobo(r);
-  const misMovimientos = (transRes.data || [])
-    .filter(t => t.robo_id === r.id)
-    .map(t => ({
-      Fecha: t.fecha_operacion,
-      Concepto: t.movimiento,
-      Importe: Number(t.importe),
-      Comisión: Number(t.comision),
-      ISIN: t.isin || '',
-      Saldo: Number(t.saldo_resultante)
-    }));
-  
-  return { ...roboBase, movements: misMovimientos };
-});
-
-setState(prev => ({
-  ...prev,
-  assets: (assetsRes.data || []).map(rowToAsset),
-  roboAdvisors: robosConMovimientos,
-  // ... resto de campos
-}));
-
-setState(prev => ({
-  ...prev,
-  assets: (assetsRes.data || []).map(rowToAsset),
-  roboAdvisors: robosConMovimientos,
-  // ... resto de campos
-}));
-
+      const robosConMovimientos = (robosRes.data || []).map(r => {
+        const roboBase = rowToRobo(r);
+        const misMovimientos = (transRes.data || [])
+          .filter(t => t.robo_id === r.id)
+          .map(t => ({
+            id: t.id,
+            date: t.fecha_operacion,
+            description: t.movimiento,
+            amount: Number(t.importe),
+            commission: Number(t.comision),
+            isin: t.isin || '',
+            category: t.categoria || 'otro',
+            // Mantenemos compatibilidad con nombres en español si el componente los usa
+            Fecha: t.fecha_operacion,
+            Concepto: t.movimiento,
+            Importe: Number(t.importe),
+            Comisión: Number(t.comision),
+            ISIN: t.isin || '',
+            Saldo: Number(t.saldo_resultante)
+          }));
         
-        if (assetsRes.error) throw assetsRes.error;
-        if (robosRes.error) throw robosRes.error;
+        return { ...roboBase, movements: misMovimientos };
+      });
 
-        setState({
-          assets: (assetsRes.data || []).map(rowToAsset),
-          roboAdvisors: (robosRes.data || []).map(rowToRobo),
-          cashBalance: settingsRes.data ? Number(settingsRes.data.cash_balance) : 0,
-          apiKey: settingsRes.data?.api_key || '',
-          historicalData: (settingsRes.data?.historical_data as any[]) || [],
-        });
-      } catch (err: any) {
-        console.error('Error loading portfolio:', err);
-        toast.error(`Error cargando cartera: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
+      setState({
+        assets: (assetsRes.data || []).map(rowToAsset),
+        roboAdvisors: robosConMovimientos,
+        cashBalance: settingsRes.data ? Number(settingsRes.data.cash_balance) : 0,
+        apiKey: settingsRes.data?.api_key || '',
+        historicalData: (settingsRes.data?.historical_data as any[]) || [],
+      });
+    } catch (err: any) {
+      console.error('Error loading portfolio:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchPortfolio();
+  }, [fetchPortfolio]);
 
   // Gestión de Activos
   const addAsset = useCallback(async (asset: Omit<Asset, 'id'>) => {
     if (!user) return;
     const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
     const { error } = await supabase.from('assets').insert(assetToRow(newAsset, user.id));
-    if (error) {
-      toast.error("Error al añadir activo: " + error.message);
-    } else {
+    if (error) toast.error("Error al añadir activo");
+    else {
       setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
-      toast.success("Activo añadido correctamente");
+      toast.success("Activo añadido");
     }
   }, [user]);
 
@@ -196,8 +190,7 @@ setState(prev => ({
       const updated = newAssets.find(a => a.id === id);
       if (updated) {
         const { user_id, ...row } = assetToRow(updated, user.id) as any;
-        supabase.from('assets').update(row).eq('id', id).eq('user_id', user.id)
-          .then(({ error }) => error && toast.error("Error al actualizar en BD"));
+        supabase.from('assets').update(row).eq('id', id).eq('user_id', user.id).then();
       }
       return { ...prev, assets: newAssets };
     });
@@ -210,112 +203,84 @@ setState(prev => ({
     const newRobo: RoboAdvisor = { ...robo, id: roboId, threeDim: robo.threeDim || emptyThreeDim() };
 
     try {
-      // 1. Guardar el Robo
       const { error: roboError } = await supabase.from('robo_advisors').insert(roboToRow(newRobo, user.id));
       if (roboError) throw roboError;
 
-      // 2. Guardar movimientos en la tabla transactions
-if (newRobo.movements && newRobo.movements.length > 0) {
-  const formatDate = (dateStr: string) => {
-    if (!dateStr || !dateStr.includes('/')) return null;
-    const [day, month, year] = dateStr.split('/');
-    return `${year}-${month}-${day}`;
-  };
-
-const txs = newRobo.movements.map(m => ({
-  user_id: user.id,
-  robo_id: roboId,
-  fecha_operacion: formatDate(m.date || m.fecha_operacion || m.Fecha),
-  movimiento: m.movement || m.movimiento || m.Concepto || '', 
-  importe: Number(m.amount || m.importe || m.Importe) || 0,
-  comision: Number(m.comision || m.Comisión) || 0,
-  isin: m.isin || m.ISIN || null,
-  tipo_operacion: (m.movement || m.Concepto || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
-  saldo_resultante: Number(m.saldo || m.Saldo) || 0, // <--- CAMBIADO AQUÍ
-}));
-
-  
-  const { error: txError } = await supabase.from('transactions').insert(txs);
-  if (txError) throw txError;
-}
-
-      setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
-      toast.success("Robo-Advisor y movimientos guardados");
+      if (newRobo.movements && newRobo.movements.length > 0) {
+        const txs = newRobo.movements.map(m => ({
+          user_id: user.id,
+          robo_id: roboId,
+          fecha_operacion: ensureIsoDate(m.date || m.Fecha || m.fecha_operacion),
+          movimiento: m.description || m.Concepto || m.movimiento || 'Aportación',
+          importe: Number(m.amount || m.Importe || m.importe) || 0,
+          comision: Number(m.commission || m.Comisión || m.comision) || 0,
+          isin: m.isin || m.ISIN || null,
+          saldo_resultante: Number(m.Saldo || 0)
+        }));
+        await supabase.from('transactions').insert(txs);
+      }
+      fetchPortfolio();
+      toast.success("Robo-Advisor guardado");
     } catch (err: any) {
-      console.error(err);
       toast.error(`Error al guardar: ${err.message}`);
     }
-  }, [user]);
+  }, [user, fetchPortfolio]);
 
-const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
-  if (!user) return;
-
-  try {
-    // 1. Actualizar datos básicos del Robo-Advisor
-    const { user_id, ...row } = roboToRow({ ...updates, id } as RoboAdvisor, user.id) as any;
-    const { error: roboError } = await supabase.from('robo_advisors').update(row).eq('id', id);
-    if (roboError) throw roboError;
-
-    // 2. Si los movimientos han cambiado, sincronizar la tabla transactions
-    if (updates.movements) {
-      // Borramos los anteriores
-      await supabase.from('transactions').delete().eq('robo_id', id);
-
-      // Insertamos los nuevos con el formato de la tabla
-      const txs = updates.movements.map(m => ({
-        user_id: user.id,
-        robo_id: id,
-        fecha_operacion: m.Fecha,
-        movimiento: m.Concepto,
-        importe: Number(m.Importe),
-        comision: Number(m.Comisión || 0),
-        isin: m.ISIN || null,
-        saldo_resultante: Number(m.Saldo || 0)
-      }));
-
-      const { error: txError } = await supabase.from('transactions').insert(txs);
-      if (txError) throw txError;
-    }
-
-    // 3. Actualizar estado local
-    setState(prev => ({
-      ...prev,
-      roboAdvisors: prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r)
-    }));
-
-    toast.success("Cambios guardados en la base de datos");
-  } catch (err: any) {
-    toast.error("Error al actualizar: " + err.message);
-  }
-}, [user]);
-
-  const updateRoboSubFunds = useCallback(async (id: string, subFunds: any[]) => {
+  const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
     if (!user) return;
-    setState(prev => {
-      const newRobos = prev.roboAdvisors.map(r => r.id === id ? { ...r, subFunds } : r);
-      supabase.from('robo_advisors').update({ sub_funds: subFunds }).eq('id', id).eq('user_id', user.id)
-        .then(({ error }) => error && toast.error("Error al actualizar sub-fondos"));
-      return { ...prev, roboAdvisors: newRobos };
-    });
-  }, [user]);
+
+    try {
+      // 1. Actualizar Datos Maestro
+      const { user_id, ...row } = roboToRow({ ...updates, id } as RoboAdvisor, user.id) as any;
+      // Eliminamos movimientos del objeto maestro para que no choque con la columna jsonb si no existe
+      delete row.movements; 
+      
+      const { error: roboError } = await supabase.from('robo_advisors').update(row).eq('id', id);
+      if (roboError) throw roboError;
+
+      // 2. Sincronizar Transacciones
+      if (updates.movements) {
+        await supabase.from('transactions').delete().eq('robo_id', id);
+        
+        const txs = updates.movements.map(m => ({
+          user_id: user.id,
+          robo_id: id,
+          fecha_operacion: ensureIsoDate(m.date || m.Fecha || m.fecha_operacion),
+          movimiento: m.description || m.Concepto || m.movimiento || 'Movimiento',
+          importe: Number(m.amount || m.Importe || m.importe) || 0,
+          comision: Number(m.commission || m.Comisión || m.comision) || 0,
+          isin: m.isin || m.ISIN || null,
+          saldo_resultante: Number(m.Saldo || m.saldo_resultante || 0)
+        }));
+
+        if (txs.length > 0) {
+          const { error: txError } = await supabase.from('transactions').insert(txs);
+          if (txError) throw txError;
+        }
+      }
+
+      fetchPortfolio();
+      toast.success("Actualizado correctamente");
+    } catch (err: any) {
+      toast.error("Error al actualizar: " + err.message);
+    }
+  }, [user, fetchPortfolio]);
 
   const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id', user.id);
-    if (error) toast.error("Error al eliminar Robo-Advisor");
-    else setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
+    const { error } = await supabase.from('robo_advisors').delete().eq('id', id);
+    if (error) toast.error("Error al eliminar");
+    else {
+      setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
+      toast.success("Eliminado");
+    }
   }, [user]);
 
-  const setApiKey = useCallback(async (apiKey: string) => {
+  // Otros métodos
+  const setCashBalance = useCallback(async (val: number) => {
     if (!user) return;
-    await supabase.from('portfolio_settings').upsert({ user_id: user.id, api_key: apiKey });
-    setState(prev => ({ ...prev, apiKey }));
-  }, [user]);
-
-  const setCashBalance = useCallback(async (cash_balance: number) => {
-    if (!user) return;
-    await supabase.from('portfolio_settings').upsert({ user_id: user.id, cash_balance });
-    setState(prev => ({ ...prev, cashBalance: cash_balance }));
+    await supabase.from('portfolio_settings').upsert({ user_id: user.id, cash_balance: val });
+    setState(prev => ({ ...prev, cashBalance: val }));
   }, [user]);
 
   const updatePrices = useCallback(async (prices: Record<string, number>) => {
@@ -324,7 +289,7 @@ const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAd
       const updated = prev.assets.map(a => {
         if (prices[a.ticker]) {
           const newPrice = prices[a.ticker];
-          supabase.from('assets').update({ current_price: newPrice }).eq('id', a.id).eq('user_id', user.id).then();
+          supabase.from('assets').update({ current_price: newPrice }).eq('id', a.id).then();
           return { ...a, currentPrice: newPrice };
         }
         return a;
@@ -333,14 +298,12 @@ const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAd
     });
   }, [user]);
 
-  // --- CÁLCULOS ---
-
+  // Memorización de cálculos
   const summary = useMemo(() => {
     const assetsValue = state.assets.reduce((s, a) => s + a.shares * a.currentPrice, 0);
     const assetsCost = state.assets.reduce((s, a) => s + a.shares * a.buyPrice, 0);
     const robosValue = state.roboAdvisors.reduce((s, r) => s + r.totalValue, 0);
     const robosInvested = state.roboAdvisors.reduce((s, r) => s + r.investedValue, 0);
-    
     const totalValue = assetsValue + robosValue + state.cashBalance;
     const totalInvested = assetsCost + robosInvested + state.cashBalance;
     
@@ -352,16 +315,16 @@ const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAd
       assetsValue,
       robosValue,
       cashBalance: state.cashBalance,
-      xirr: 0 
     };
   }, [state]);
 
   const distribution = useMemo(() => {
-    const types = ['Fondos MyInvestor', 'Fondos BBK', 'Acciones'];
-    const dist = types.map(t => ({
-      name: t,
-      value: state.assets.filter(a => a.type === t).reduce((s, a) => s + a.shares * a.currentPrice, 0)
-    }));
+    const dist = state.assets.reduce((acc: any[], a) => {
+      const existing = acc.find(x => x.name === a.type);
+      if (existing) existing.value += a.shares * a.currentPrice;
+      else acc.push({ name: a.type, value: a.shares * a.currentPrice });
+      return acc;
+    }, []);
     dist.push({ name: 'Robo-Advisors', value: state.roboAdvisors.reduce((s, r) => s + r.totalValue, 0) });
     dist.push({ name: 'Efectivo', value: state.cashBalance });
     return dist.filter(d => d.value > 0);
@@ -378,24 +341,14 @@ const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAd
       td.assetClassPro?.forEach(a => acpTotals[a.name] = (acpTotals[a.name] || 0) + (value * a.weight / 100));
     };
 
-    state.assets
-      .filter(a => entity === 'all' || a.type.includes(entity))
-      .forEach(a => processItem(a.shares * a.currentPrice, a.threeDim));
+    state.assets.filter(a => entity === 'all' || a.type.includes(entity)).forEach(a => processItem(a.shares * a.currentPrice, a.threeDim));
+    state.roboAdvisors.filter(r => entity === 'all' || entity === 'Robo-Advisors').forEach(r => processItem(r.totalValue, r.threeDim));
 
-    state.roboAdvisors
-      .filter(r => entity === 'all' || entity === 'Robo-Advisors')
-      .forEach(r => {
-        if (r.subFunds?.length) {
-          r.subFunds.forEach(sf => processItem(r.totalValue * sf.weightPct / 100, sf.threeDim));
-        } else {
-          processItem(r.totalValue, r.threeDim);
-        }
-      });
-
-    const toItems = (totals: Record<string, number>) => 
-      Object.entries(totals).map(([name, value]) => ({ name, value }));
-
-    return { geography: toItems(geoTotals), sector: toItems(sectorTotals), assetClassPro: toItems(acpTotals) };
+    return { 
+      geography: Object.entries(geoTotals).map(([name, value]) => ({ name, value })),
+      sector: Object.entries(sectorTotals).map(([name, value]) => ({ name, value })),
+      assetClassPro: Object.entries(acpTotals).map(([name, value]) => ({ name, value }))
+    };
   }, [state]);
 
   return {
@@ -409,10 +362,9 @@ const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAd
     updateAsset,
     addRoboAdvisor,
     updateRoboAdvisor,
-    updateRoboSubFunds,
     removeRoboAdvisor,
-    setApiKey,
     setCashBalance,
     updatePrices,
+    refresh: fetchPortfolio
   };
 }
