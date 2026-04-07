@@ -20,8 +20,10 @@ export type Database = {
           buy_price: number
           created_at: string
           current_price: number
+          entity: string
           geography: Json | null
           id: string
+          isin: string | null
           name: string
           sectors: Json | null
           shares: number
@@ -34,8 +36,10 @@ export type Database = {
           buy_price?: number
           created_at?: string
           current_price?: number
+          entity?: string
           geography?: Json | null
           id?: string
+          isin?: string | null
           name: string
           sectors?: Json | null
           shares?: number
@@ -48,14 +52,52 @@ export type Database = {
           buy_price?: number
           created_at?: string
           current_price?: number
+          entity?: string
           geography?: Json | null
           id?: string
+          isin?: string | null
           name?: string
           sectors?: Json | null
           shares?: number
           ticker?: string
           type?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      isin_library: {
+        Row: {
+          asset_class_pro: Json | null
+          asset_type: string
+          created_at: string
+          geography: Json | null
+          id: string
+          isin: string
+          name: string
+          sectors: Json | null
+          user_id: string
+        }
+        Insert: {
+          asset_class_pro?: Json | null
+          asset_type?: string
+          created_at?: string
+          geography?: Json | null
+          id?: string
+          isin: string
+          name?: string
+          sectors?: Json | null
+          user_id: string
+        }
+        Update: {
+          asset_class_pro?: Json | null
+          asset_type?: string
+          created_at?: string
+          geography?: Json | null
+          id?: string
+          isin?: string
+          name?: string
+          sectors?: Json | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -91,6 +133,7 @@ export type Database = {
           allocations: Json | null
           asset_class_pro: Json | null
           created_at: string
+          entity: string
           geography: Json | null
           id: string
           invested_value: number
@@ -107,6 +150,7 @@ export type Database = {
           allocations?: Json | null
           asset_class_pro?: Json | null
           created_at?: string
+          entity?: string
           geography?: Json | null
           id?: string
           invested_value?: number
@@ -123,6 +167,7 @@ export type Database = {
           allocations?: Json | null
           asset_class_pro?: Json | null
           created_at?: string
+          entity?: string
           geography?: Json | null
           id?: string
           invested_value?: number
@@ -137,6 +182,41 @@ export type Database = {
         }
         Relationships: []
       }
+      robo_constituents: {
+        Row: {
+          created_at: string
+          id: string
+          isin: string
+          robo_id: string
+          user_id: string
+          weight_percentage: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          isin: string
+          robo_id: string
+          user_id: string
+          weight_percentage?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          isin?: string
+          robo_id?: string
+          user_id?: string
+          weight_percentage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "robo_constituents_robo_id_fkey"
+            columns: ["robo_id"]
+            isOneToOne: false
+            referencedRelation: "robo_advisors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number
@@ -145,7 +225,10 @@ export type Database = {
           date: string
           description: string | null
           id: string
+          isin: string | null
           robo_advisor_id: string | null
+          robo_id: string | null
+          type: string
           updated_at: string
           user_id: string
         }
@@ -156,7 +239,10 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          isin?: string | null
           robo_advisor_id?: string | null
+          robo_id?: string | null
+          type?: string
           updated_at?: string
           user_id: string
         }
@@ -167,7 +253,10 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          isin?: string | null
           robo_advisor_id?: string | null
+          robo_id?: string | null
+          type?: string
           updated_at?: string
           user_id?: string
         }
@@ -182,6 +271,13 @@ export type Database = {
           {
             foreignKeyName: "transactions_robo_advisor_id_fkey"
             columns: ["robo_advisor_id"]
+            isOneToOne: false
+            referencedRelation: "robo_advisors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_robo_id_fkey"
+            columns: ["robo_id"]
             isOneToOne: false
             referencedRelation: "robo_advisors"
             referencedColumns: ["id"]

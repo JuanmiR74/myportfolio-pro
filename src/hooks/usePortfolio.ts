@@ -11,7 +11,9 @@ function assetToRow(a: Asset, userId: string): Record<string, unknown> {
   return {
     id: a.id,
     name: a.name,
-    ticker: a.ticker, //
+    ticker: a.ticker,
+    isin: a.isin || null,
+    entity: a.entity || '',
     type: a.type,
     shares: a.shares,
     buy_price: a.buyPrice,
@@ -29,7 +31,9 @@ function rowToAsset(r: any): Asset {
   return {
     id: r.id,
     name: r.name,
-    ticker: r.ticker, 
+    ticker: r.ticker,
+    isin: r.isin || undefined,
+    entity: r.entity || '',
     type: r.type,
     shares: Number(r.shares),
     buyPrice: Number(r.buy_price),
