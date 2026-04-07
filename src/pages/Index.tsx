@@ -3,6 +3,8 @@ import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loa
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
+import { useIsinLibrary } from '@/hooks/useIsinLibrary';
+import { useRoboConstituents } from '@/hooks/useRoboConstituents';
 import { Header } from '@/components/Header';
 import SummaryCards from '@/components/portfolio/SummaryCards';
 import AllocationChart from '@/components/portfolio/AllocationChart';
@@ -17,6 +19,8 @@ type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 
 export default function Index() {
   const p = usePortfolio();
+  const isinLib = useIsinLibrary();
+  const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
   if (p.loading) {
@@ -135,12 +139,12 @@ export default function Index() {
 
           <TabsContent value="xray" className="space-y-4">
             <XRayDashboard
-              getXrayByEntity={p.getXrayByEntity}
               entityFilter={entityFilter}
               assets={p.assets}
               roboAdvisors={p.roboAdvisors}
-              onUpdateAssetThreeDim={p.updateAssetThreeDim}
-              onUpdateRoboThreeDim={p.updateRoboThreeDim}
+              isinLibrary={isinLib.entries}
+              roboConstituents={roboConsts.constituents}
+              onUpdateIsinClassification={isinLib.updateIsinClassification}
               onUpdateRoboSubFunds={p.updateRoboSubFunds}
             />
           </TabsContent>
