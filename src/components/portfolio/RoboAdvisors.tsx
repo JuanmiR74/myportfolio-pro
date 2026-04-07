@@ -32,9 +32,11 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const [allocDialogId, setAllocDialogId] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<{ assetClass: AssetClass; weight: string }[]>([]);
   const [sectorAllocations, setSectorAllocations] = useState<{ sector: SectorGeo; weight: string }[]>([]);
+  
+  // Movements states
   const [movDialogId, setMovDialogId] = useState<string | null>(null);
   const [editingMovIdx, setEditingMovIdx] = useState<number | null>(null);
-  const [movForm, setMovForm] = useState({ date: '', description: '', amount: '', commission: '' });
+  const [movForm, setMovForm] = useState({ date: '', description: '', amount: '', commission: '', isin: '' });
   const [addingMov, setAddingMov] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -82,24 +84,36 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
     toast.success('Distribución actualizada');
   };
 
-  // Movements management
+  // Movements management logic
   const currentRobo = movDialogId ? robos.find(r => r.id === movDialogId) : null;
   const movements = currentRobo?.movements || [];
 
   const recalcInvested = (movs: RoboMovement[]) => {
-    return movs.filter(m => m.category === 'aportacion').reduce((s, m) => s + m.amount, 0);
+    // Calculamos el invertido sumando aportaciones y restando reembolsos si fuera necesario
+    return movs.reduce((s, m) => s + m.amount, 0);
   };
 
   const saveMovement = () => {
     if (!movDialogId || !currentRobo) return;
     const amt = parseFloat(movForm.amount);
     const comm = parseFloat(movForm.commission) || 0;
-    if (!movForm.date || !movForm.description || isNaN(amt)) { toast.error('Rellena todos los campos'); return; }
+    
+    if (!movForm.date || !movForm.description || isNaN(amt)) { 
+      toast.error('Rellena fecha, concepto e importe'); 
+      return; 
+    }
 
     let updatedMovs: RoboMovement[];
     if (editingMovIdx !== null) {
       updatedMovs = [...movements];
-      updatedMovs[editingMovIdx] = { ...updatedMovs[editingMovIdx], date: movForm.date, description: movForm.description, amount: amt, commission: comm };
+      updatedMovs[editingMovIdx] = { 
+        ...updatedMovs[editingMovIdx], 
+        date: movForm.date, 
+        description: movForm.description, 
+        amount: amt, 
+        commission: comm,
+        isin: movForm.isin
+      };
     } else {
       const newMov: RoboMovement = {
         id: crypto.randomUUID(),
@@ -107,14 +121,21 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
         description: movForm.description,
         amount: amt,
         commission: comm,
+        isin: movForm.isin,
         category: amt > 0 ? 'aportacion' : 'otro',
       };
       updatedMovs = [...movements, newMov];
     }
 
     const newInvested = recalcInvested(updatedMovs);
-    onUpdate(movDialogId, { movements: updatedMovs, investedValue: newInvested });
-    setMovForm({ date: '', description: '', amount: '', commission: '' });
+    
+    // Sincronización con Supabase a través de la prop onUpdate
+    onUpdate(movDialogId, { 
+      movements: updatedMovs, 
+      investedValue: newInvested 
+    });
+
+    setMovForm({ date: '', description: '', amount: '', commission: '', isin: '' });
     setEditingMovIdx(null);
     setAddingMov(false);
     toast.success(editingMovIdx !== null ? 'Movimiento actualizado' : 'Movimiento añadido');
@@ -131,7 +152,13 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const startEditMov = (idx: number) => {
     const m = movements[idx];
     setEditingMovIdx(idx);
-    setMovForm({ date: m.date, description: m.description, amount: m.amount.toString(), commission: m.commission.toString() });
+    setMovForm({ 
+      date: m.date, 
+      description: m.description, 
+      amount: m.amount.toString(), 
+      commission: m.commission.toString(),
+      isin: m.isin || ''
+    });
     setAddingMov(true);
   };
 
@@ -146,7 +173,13 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
       lines.forEach(line => {
         const [name, totalValue, investedValue] = line.split(',').map(s => s.trim());
         if (name && totalValue) {
-          onAdd({ name, entity: '', totalValue: parseFloat(totalValue), investedValue: parseFloat(investedValue || totalValue), lastUpdated: new Date().toISOString().split('T')[0] });
+          onAdd({ 
+            name, 
+            entity: '', 
+            totalValue: parseFloat(totalValue), 
+            investedValue: parseFloat(investedValue || totalValue), 
+            lastUpdated: new Date().toISOString().split('T')[0] 
+          });
           count++;
         }
       });
@@ -182,6 +215,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           </Dialog>
         </div>
       </CardHeader>
+      
       <CardContent className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -294,9 +328,9 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           </DialogContent>
         </Dialog>
 
-        {/* Movements Dialog */}
+        {/* Movements Dialog - REVISADO PARA SOPORTE SUPABASE */}
         <Dialog open={!!movDialogId} onOpenChange={open => { if (!open) { setMovDialogId(null); setAddingMov(false); setEditingMovIdx(null); } }}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Table2 className="h-5 w-5 text-primary" />
@@ -306,9 +340,9 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  {movements.length} movimiento(s) · Capital invertido: <span className="font-mono font-medium text-foreground">{fmt(currentRobo?.investedValue || 0)}</span>
+                  {movements.length} movimiento(s) · Invertido total: <span className="font-mono font-medium text-foreground">{fmt(currentRobo?.investedValue || 0)}</span>
                 </p>
-                <Button size="sm" onClick={() => { setAddingMov(true); setEditingMovIdx(null); setMovForm({ date: new Date().toISOString().split('T')[0], description: '', amount: '', commission: '0' }); }} className="gap-1">
+                <Button size="sm" onClick={() => { setAddingMov(true); setEditingMovIdx(null); setMovForm({ date: new Date().toISOString().split('T')[0], description: '', amount: '', commission: '0', isin: '' }); }} className="gap-1">
                   <Plus className="h-4 w-4" /> Añadir
                 </Button>
               </div>
@@ -316,11 +350,27 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
               {addingMov && (
                 <div className="border border-border/50 rounded-lg p-3 space-y-2 bg-secondary/30">
                   <p className="text-sm font-medium">{editingMovIdx !== null ? 'Editar movimiento' : 'Nuevo movimiento'}</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div><Label className="text-xs">Fecha</Label><Input type="date" value={movForm.date} onChange={e => setMovForm({ ...movForm, date: e.target.value })} className="h-8 text-sm" /></div>
-                    <div className="col-span-2 sm:col-span-1"><Label className="text-xs">Concepto</Label><Input value={movForm.description} onChange={e => setMovForm({ ...movForm, description: e.target.value })} className="h-8 text-sm" placeholder="Aportación" /></div>
-                    <div><Label className="text-xs">Importe (€)</Label><Input type="number" value={movForm.amount} onChange={e => setMovForm({ ...movForm, amount: e.target.value })} className="h-8 text-sm" /></div>
-                    <div><Label className="text-xs">Comisión (€)</Label><Input type="number" value={movForm.commission} onChange={e => setMovForm({ ...movForm, commission: e.target.value })} className="h-8 text-sm" /></div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <div>
+                      <Label className="text-xs">Fecha</Label>
+                      <Input type="date" value={movForm.date} onChange={e => setMovForm({ ...movForm, date: e.target.value })} className="h-8 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Concepto</Label>
+                      <Input value={movForm.description} onChange={e => setMovForm({ ...movForm, description: e.target.value })} className="h-8 text-sm" placeholder="Aportación" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Importe (€)</Label>
+                      <Input type="number" value={movForm.amount} onChange={e => setMovForm({ ...movForm, amount: e.target.value })} className="h-8 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Comisión (€)</Label>
+                      <Input type="number" value={movForm.commission} onChange={e => setMovForm({ ...movForm, commission: e.target.value })} className="h-8 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">ISIN (opcional)</Label>
+                      <Input value={movForm.isin} onChange={e => setMovForm({ ...movForm, isin: e.target.value })} className="h-8 text-sm" placeholder="ES..." />
+                    </div>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <Button size="sm" variant="outline" onClick={() => { setAddingMov(false); setEditingMovIdx(null); }}>Cancelar</Button>
@@ -343,17 +393,17 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
                   </TableHeader>
                   <TableBody>
                     {movements.length === 0 && (
-                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-8">Sin movimientos registrados</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-8">Sin movimientos registrados en la base de datos</TableCell></TableRow>
                     )}
                     {movements.map((m, idx) => (
-                      <TableRow key={m.id}>
+                      <TableRow key={m.id || idx}>
                         <TableCell className="text-xs font-mono">{m.date}</TableCell>
-                        <TableCell className="text-xs max-w-[200px] truncate">{m.description}</TableCell>
+                        <TableCell className="text-xs max-w-[180px] truncate">{m.description}</TableCell>
                         <TableCell className={`text-right text-xs font-mono ${m.amount >= 0 ? 'text-profit' : 'text-loss'}`}>{fmt(m.amount)}</TableCell>
                         <TableCell className="text-right text-xs font-mono text-loss">{m.commission > 0 ? `-${fmt(m.commission)}` : '—'}</TableCell>
                         <TableCell className="text-xs font-mono text-muted-foreground">{m.isin || '—'}</TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 justify-end">
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEditMov(idx)}><Pencil className="h-3 w-3" /></Button>
                             <Button variant="ghost" size="icon" className="h-6 w-6 text-loss" onClick={() => deleteMov(idx)}><Trash2 className="h-3 w-3" /></Button>
                           </div>
@@ -367,8 +417,10 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           </DialogContent>
         </Dialog>
 
-        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos · 📊 Distribución · ✏️ Editar Saldo</p>
+        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos sincronizados con Supabase · 📊 Distribución · ✏️ Editar Saldo</p>
       </CardContent>
     </Card>
   );
 }
+
+
