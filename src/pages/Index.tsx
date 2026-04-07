@@ -104,6 +104,7 @@ export default function Index() {
                 } else {
                   p.addRoboAdvisor({
                     name: data.name,
+                    entity: '',
                     totalValue: data.totalValue,
                     investedValue: data.investedValue,
                     lastUpdated: new Date().toISOString().split('T')[0],

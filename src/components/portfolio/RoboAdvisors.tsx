@@ -146,7 +146,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
       lines.forEach(line => {
         const [name, totalValue, investedValue] = line.split(',').map(s => s.trim());
         if (name && totalValue) {
-          onAdd({ name, totalValue: parseFloat(totalValue), investedValue: parseFloat(investedValue || totalValue), lastUpdated: new Date().toISOString().split('T')[0] });
+          onAdd({ name, entity: '', totalValue: parseFloat(totalValue), investedValue: parseFloat(investedValue || totalValue), lastUpdated: new Date().toISOString().split('T')[0] });
           count++;
         }
       });
