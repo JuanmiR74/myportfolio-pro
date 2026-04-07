@@ -46,23 +46,22 @@ function rowToAsset(r: any): Asset {
   };
 }
 
-
-
 function roboToRow(r: RoboAdvisor, userId: string): Record<string, unknown> {
   return {
     id: r.id,
     name: r.name,
-    entity: r.entity,
-    total_value: r.totalValue,
-    invested_value: r.investedValue,
-    last_updated: r.lastUpdated,
-    allocations: JSON.parse(JSON.stringify(r.allocations || [])),
-    sector_allocations: JSON.parse(JSON.stringify(r.sectorAllocations || [])),
-    movements: JSON.parse(JSON.stringify(r.movements || [])),
-    geography: JSON.parse(JSON.stringify(r.threeDim?.geography || [])),
-    sectors: JSON.parse(JSON.stringify(r.threeDim?.sectors || [])),
-    asset_class_pro: JSON.parse(JSON.stringify(r.threeDim?.assetClassPro || [])),
-    sub_funds: JSON.parse(JSON.stringify(r.subFunds || [])),
+    entity: r.entity || '',
+    total_value: Number(r.totalValue) || 0,
+    invested_value: Number(r.investedValue) || 0,
+    last_updated: r.lastUpdated || new Date().toISOString(),
+    // Enviamos los arrays directamente, Supabase-js se encarga del formato JSONB
+    allocations: r.allocations || [],
+    sector_allocations: r.sectorAllocations || [],
+    movements: r.movements || [],
+    geography: r.threeDim?.geography || [],
+    sectors: r.threeDim?.sectors || [],
+    asset_class_pro: r.threeDim?.assetClassPro || [],
+    sub_funds: r.subFunds || [],
     user_id: userId,
   };
 }
