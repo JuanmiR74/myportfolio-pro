@@ -141,7 +141,12 @@ setState(prev => ({
   // ... resto de campos
 }));
 
-
+setState(prev => ({
+  ...prev,
+  assets: (assetsRes.data || []).map(rowToAsset),
+  roboAdvisors: robosConMovimientos,
+  // ... resto de campos
+}));
 
         
         if (assetsRes.error) throw assetsRes.error;
