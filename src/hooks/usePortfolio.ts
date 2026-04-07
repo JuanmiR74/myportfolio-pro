@@ -107,12 +107,43 @@ export function usePortfolio() {
     const init = async () => {
       if (!user) { setLoading(false); return; }
       try {
-        const [assetsRes, robosRes, settingsRes] = await Promise.all([
-          supabase.from('assets').select('*').eq('user_id', user.id),
-          supabase.from('robo_advisors').select('*').eq('user_id', user.id),
-          supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle(),
-        ]);
 
+
+// ... dentro del init del useEffect
+const [assetsRes, robosRes, settingsRes, transRes] = await Promise.all([
+  supabase.from('assets').select('*').eq('user_id', user.id),
+  supabase.from('robo_advisors').select('*').eq('user_id', user.id),
+  supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle(),
+  supabase.from('transactions').select('*').eq('user_id', user.id), // Cargamos movimientos
+]);
+
+// Mapeamos los robos e inyectamos sus transacciones correspondientes
+const robosConMovimientos = (robosRes.data || []).map(r => {
+  const roboBase = rowToRobo(r);
+  const misMovimientos = (transRes.data || [])
+    .filter(t => t.robo_id === r.id)
+    .map(t => ({
+      Fecha: t.fecha_operacion,
+      Concepto: t.movimiento,
+      Importe: Number(t.importe),
+      Comisión: Number(t.comision),
+      ISIN: t.isin || '',
+      Saldo: Number(t.saldo_resultante)
+    }));
+  
+  return { ...roboBase, movements: misMovimientos };
+});
+
+setState(prev => ({
+  ...prev,
+  assets: (assetsRes.data || []).map(rowToAsset),
+  roboAdvisors: robosConMovimientos,
+  // ... resto de campos
+}));
+
+
+
+        
         if (assetsRes.error) throw assetsRes.error;
         if (robosRes.error) throw robosRes.error;
 
