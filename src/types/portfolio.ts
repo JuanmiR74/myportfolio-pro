@@ -34,6 +34,8 @@ export interface Asset {
   id: string;
   name: string;
   ticker: string;
+  isin?: string;
+  entity?: string;
   type: AssetType;
   shares: number;
   buyPrice: number;
