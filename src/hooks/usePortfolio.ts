@@ -183,22 +183,35 @@ export function usePortfolio() {
 
 if (newRobo.movements && newRobo.movements.length > 0) {
   const txs = newRobo.movements.map(m => {
-    // Función interna para convertir DD/MM/YYYY a YYYY-MM-DD
-    let formattedDate = m.date;
-    if (typeof m.date === 'string' && m.date.includes('/')) {
-      const [day, month, year] = m.date.split('/');
-      formattedDate = `${year}-${month}-${day}`;
-    }
+    // Función para convertir DD/MM/YYYY a YYYY-MM-DD
+    const formatDate = (dateStr: string) => {
+      if (!dateStr || !dateStr.includes('/')) return null;
+      const [day, month, year] = dateStr.split('/');
+      return `${year}-${month}-${day}`;
+    };
 
     return {
       user_id: user.id,
       robo_id: roboId,
-      type: m.type,
-      amount: m.amount,
-      date: formattedDate, // Ahora la fecha es segura
-      isin: m.isin || null
+      // Mapeo directo de tu fichero a la tabla
+      movimiento: m.movement || m.movimiento || '', 
+      importe: Number(m.amount) || Number(m.importe) || 0,
+      saldo: Number(m.saldo) || 0,
+      fecha_operacion: formatDate(m.date || m.fecha_operacion),
+      fecha_valor: formatDate(m.fecha_valor || m.date),
+      // Mantenemos estas por compatibilidad si quieres
+      type: (m.movement || '').toLowerCase().includes('reemb') ? 'sell' : 'buy',
+      amount: Math.abs(Number(m.amount || m.importe)) || 0,
+      date: formatDate(m.date || m.fecha_operacion)
     };
   });
+  
+  const { error: txError } = await supabase.from('transactions').insert(txs);
+  if (txError) {
+    console.error("Error detallado:", txError);
+    toast.error("Error al guardar movimientos: " + txError.message);
+  }
+}
   
   await supabase.from('transactions').insert(txs);
 }
