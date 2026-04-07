@@ -251,7 +251,7 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
       items.push({
         id: a.id, name: a.name, isin: isinKey, origin: 'Fondo Individual',
         entity: a.entity || a.type.replace('Fondos ', ''), value: a.shares * a.currentPrice,
-        weightPct: 0, threeDim: entry ? { geography: entry.geography, sectors: entry.sectors, assetClassPro: entry.assetClassPro } : a.threeDim, sourceType: 'asset',
+        weightPct: 0, threeDim: entry ? { geography: entry.geography as any, sectors: entry.sectors as any, assetClassPro: entry.assetClassPro as any } : a.threeDim, sourceType: 'asset',
       });
     });
 
