@@ -493,7 +493,71 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           </DialogContent>
         </Dialog>
 
-        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos sincronizados con Supabase · 📊 Distribución · ✏️ Editar Saldo</p>
+        {/* Fund Composition Dialog */}
+        <Dialog open={!!compDialogId} onOpenChange={open => { if (!open) setCompDialogId(null); }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ListTree className="h-5 w-5 text-primary" />
+                Composición de Fondos — {robos.find(r => r.id === compDialogId)?.name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {compItems.length} fondo(s) detectado(s) · Total pesos: <span className="font-mono font-medium text-foreground">{compItems.reduce((s, i) => s + i.weightPct, 0).toFixed(1)}%</span>
+                </p>
+                <Button size="sm" variant="outline" onClick={recalcComposition} className="gap-1">
+                  🔄 Recalcular
+                </Button>
+              </div>
+
+              {compItems.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ListTree className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No se han encontrado fondos con ISIN en los movimientos.</p>
+                  <p className="text-xs mt-1">Asegúrate de que los movimientos tienen el campo ISIN rellenado.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ISIN</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead className="text-right">Importe Neto</TableHead>
+                      <TableHead className="text-right w-24">Peso %</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {compItems.map((item, idx) => (
+                      <TableRow key={item.isin}>
+                        <TableCell className="font-mono text-xs">{item.isin}</TableCell>
+                        <TableCell className="text-sm">{item.name}</TableCell>
+                        <TableCell className="text-right font-mono text-sm">{fmt(item.netAmount)}</TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            value={item.weightPct}
+                            onChange={e => updateCompWeight(idx, e.target.value)}
+                            className="w-20 h-7 text-right text-sm ml-auto"
+                            step="0.1"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCompDialogId(null)}>Cancelar</Button>
+                <Button onClick={saveComposition} disabled={compItems.length === 0}>Guardar como Sub-fondos</Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos · 🌳 Composición Fondos · 📊 Distribución · ✏️ Editar Saldo</p>
       </CardContent>
     </Card>
   );
