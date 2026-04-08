@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X } from 'lucide-react';
+import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X, ListTree } from 'lucide-react';
 import { RoboAdvisor, RoboMovement, AssetClass, SectorGeo, RoboAdvisorAllocation, RoboAdvisorSectorAllocation } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
