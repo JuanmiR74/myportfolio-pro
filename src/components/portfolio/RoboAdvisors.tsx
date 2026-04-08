@@ -340,6 +340,9 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
                       <Button variant="ghost" size="icon" onClick={() => { setMovDialogId(r.id); setAddingMov(false); setEditingMovIdx(null); }} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Ver Movimientos">
                         <Table2 className="h-4 w-4" />
                       </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openComposition(r)} className="h-8 w-8 text-muted-foreground hover:text-accent-foreground" title="Composición de Fondos">
+                        <ListTree className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openAllocDialog(r)} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar Distribución">
                         <PieChart className="h-4 w-4" />
                       </Button>
