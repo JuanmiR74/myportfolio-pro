@@ -1,0 +1,40 @@
+"Actúa como un experto en React y Supabase. Actualmente, mi aplicación utiliza un modelo de base de datos relacional con múltiples tablas (assets, robo_advisors, transactions, portfolio_settings). Esto está causando errores de restricciones (not-null constraints) y complejidad innecesaria en los mapeos.
+
+Tarea:
+Quiero migrar toda la persistencia de datos a un modelo de documento único (JSONB) para simplificar la aplicación y eliminar errores de base de datos.
+
+Instrucciones detalladas:
+
+Nueva Tabla en Supabase: Crea (o asume que existe) una tabla llamada user_portfolio con las columnas:
+
+user_id (uuid, primary key, references auth.users)
+
+data (jsonb, donde se guardará todo el estado)
+
+updated_at (timestamp)
+
+Refactorización del Hook usePortfolio.ts:
+
+Modifica el hook para que ya no haga consultas a múltiples tablas.
+
+Implementa una función loadPortfolio que lea la columna data de user_portfolio y cargue el estado completo en el useState.
+
+Implementa una función centralizada savePortfolio(newState) que haga un upsert del objeto completo a la tabla user_portfolio.
+
+Asegúrate de que todas las funciones de modificación (addAsset, updateRoboAdvisor, removeAsset, setCashBalance, etc.) actualicen el estado local y llamen a savePortfolio.
+
+Mantenimiento de Funcionalidad y Tipado:
+
+IMPORTANTE: Debes mantener exactamente la misma estructura de datos que los componentes actuales esperan (basada en los tipos Asset, RoboAdvisor, PortfolioState, etc.).
+
+Los cálculos de summary (totalValue, PL), distribution y getXrayByEntity deben seguir funcionando igual, consumiendo los datos desde el nuevo estado JSON.
+
+Asegúrate de que los movimientos de los Robo-Advisors se guarden dentro del array movements de cada objeto robo-advisor dentro del JSON.
+
+Seguridad:
+
+Añade o mantén las comprobaciones de user.id para que cada usuario solo acceda a su fila en user_portfolio.
+
+Objetivo final: Eliminar toda la lógica de mapeo compleja (como assetToRow o rowToAsset) y sustituirla por una sincronización directa del objeto de estado de React con la columna JSONB de Supabase."
+
+usa el archivo @/types/portfolio.ts como fuente de verdad para la estructura del JSON.
