@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader as Loader2 } from 'lucide-react';
+import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader as Loader2, Library } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
@@ -14,6 +14,7 @@ import RoboAdvisors from '@/components/portfolio/RoboAdvisors';
 import RoboImporter from '@/components/portfolio/RoboImporter';
 import SettingsPanel from '@/components/portfolio/SettingsPanel';
 import XRayDashboard from '@/components/portfolio/XRayDashboard';
+import IsinLibraryView from '@/components/portfolio/IsinLibraryView';
 
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 
@@ -85,6 +86,9 @@ export default function Index() {
             </TabsTrigger>
             <TabsTrigger value="xray" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <ScanSearch className="h-4 w-4" /> X-Ray
+            </TabsTrigger>
+            <TabsTrigger value="isin-library" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Library className="h-4 w-4" /> Librería ISIN
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Settings className="h-4 w-4" /> Configuración
@@ -160,6 +164,15 @@ export default function Index() {
               onUpdateRoboSubFunds={p.updateRoboSubFunds}
               getByIsin={p.getByIsin}
               upsertIsin={p.upsertIsin}
+            />
+          </TabsContent>
+
+          <TabsContent value="isin-library" className="space-y-4">
+            <IsinLibraryView
+              entries={p.isinLibrary}
+              onUpsert={p.upsertIsin}
+              onUpdateClassification={p.updateIsinClassification}
+              onDelete={p.deleteIsin}
             />
           </TabsContent>
 
