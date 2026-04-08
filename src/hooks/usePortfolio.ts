@@ -245,26 +245,35 @@ export function usePortfolio() {
       } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
     });
 
+    // Build a fast lookup for the ISIN library
+    const isinMap = new Map(state.isinLibrary.map(e => [e.isin, e]));
+
+    const applyEntry = (entry: typeof state.isinLibrary[0] | undefined, amount: number) => {
+      if (entry?.geography?.length) {
+        entry.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + amount * g.weight / 100; });
+      } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + amount; }
+      if (entry?.sectors?.length) {
+        entry.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + amount * s.weight / 100; });
+      } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + amount; }
+      if (entry?.assetClassPro?.length) {
+        entry.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + amount * ac.weight / 100; });
+      } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + amount; }
+    };
+
     const filteredRobos = (entity === 'all' || entity === 'Robo-Advisors') ? state.roboAdvisors : [];
     filteredRobos.forEach(r => {
       const value = r.totalValue;
       const hasSubFunds = r.subFunds && r.subFunds.length > 0;
 
       if (hasSubFunds) {
+        // Always use isinLibrary for subFund classification — ignore legacy threeDim on the subFund
         r.subFunds!.forEach(sf => {
           const sfValue = value * sf.weightPct / 100;
-          const td = sf.threeDim;
-          if (td?.geography?.length) {
-            td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + sfValue * g.weight / 100; });
-          } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + sfValue; }
-          if (td?.sectors?.length) {
-            td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + sfValue * s.weight / 100; });
-          } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + sfValue; }
-          if (td?.assetClassPro?.length) {
-            td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + sfValue * ac.weight / 100; });
-          } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + sfValue; }
+          const entry = sf.isin ? isinMap.get(sf.isin.toUpperCase()) : undefined;
+          applyEntry(entry, sfValue);
         });
       } else {
+        // No subFunds: fall back to robo-level threeDim classification
         const td = r.threeDim;
         if (td?.geography?.length) {
           td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });

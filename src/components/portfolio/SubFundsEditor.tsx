@@ -4,8 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { RoboSubFund, ThreeDimensionClassification, IsinEntry } from '@/types/portfolio';
-import ThreeDimEditor from './ThreeDimEditor';
+import { RoboSubFund, IsinEntry } from '@/types/portfolio';
 
 interface Props {
   subFunds: RoboSubFund[];
@@ -17,49 +16,46 @@ interface Props {
 
 export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, upsertIsin }: Props) {
   const [funds, setFunds] = useState<RoboSubFund[]>(subFunds);
-  const [editingFundId, setEditingFundId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
 
   const totalWeight = funds.reduce((s, f) => s + f.weightPct, 0);
+  const weightOk = funds.length === 0 || Math.abs(totalWeight - 100) <= 1;
 
   const addFund = () => {
-    const newFund: RoboSubFund = {
+    setFunds(prev => [...prev, {
       id: crypto.randomUUID(),
       isin: '',
       name: '',
       weightPct: 0,
-    };
-    setFunds([...funds, newFund]);
+    }]);
   };
 
-  const updateFund = (id: string, field: keyof RoboSubFund, value: string | number | ThreeDimensionClassification) => {
-    setFunds(funds.map(f => f.id === id ? { ...f, [field]: value } : f));
+  const updateFund = (id: string, field: keyof RoboSubFund, value: string | number) => {
+    setFunds(prev => prev.map(f => f.id === id ? { ...f, [field]: value } : f));
   };
 
   const removeFund = (id: string) => {
-    setFunds(funds.filter(f => f.id !== id));
+    setFunds(prev => prev.filter(f => f.id !== id));
   };
 
   const handleIsinBlur = (fund: RoboSubFund) => {
-    if (!getByIsin || !fund.isin.trim()) return;
-    const entry = getByIsin(fund.isin.trim().toUpperCase());
+    const isin = fund.isin.trim().toUpperCase();
+    if (!isin) return;
+    const entry = getByIsin?.(isin);
     if (entry) {
-      setFunds(prev => prev.map(f => {
-        if (f.id !== fund.id) return f;
-        return {
-          ...f,
-          name: f.name || entry.name,
-          ...(entry.geography?.length || entry.sectors?.length || entry.assetClassPro?.length
-            ? { threeDim: { geography: entry.geography ?? [], sectors: entry.sectors ?? [], assetClassPro: entry.assetClassPro ?? [] } }
-            : {}),
-        };
-      }));
-      toast.info('Datos recuperados de la librería ISIN');
+      setFunds(prev => prev.map(f =>
+        f.id === fund.id ? { ...f, isin, name: entry.name } : f
+      ));
+      toast.info(`"${entry.name}" recuperado de la librería ISIN`);
+    } else {
+      setFunds(prev => prev.map(f =>
+        f.id === fund.id ? { ...f, isin } : f
+      ));
     }
   };
 
   const handleSave = () => {
-    const validFunds = funds.filter(f => f.name.trim());
+    const validFunds = funds.filter(f => f.name.trim() || f.isin.trim());
     const total = validFunds.reduce((s, f) => s + f.weightPct, 0);
     if (validFunds.length > 0 && Math.abs(total - 100) > 1) {
       toast.error(`Los pesos suman ${total.toFixed(1)}%, deben sumar 100%`);
@@ -67,43 +63,26 @@ export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, 
     }
     validFunds.forEach(f => {
       if (!upsertIsin || !f.isin.trim()) return;
-      const hasClassification = f.threeDim && (
-        f.threeDim.geography.length > 0 || f.threeDim.sectors.length > 0 || f.threeDim.assetClassPro.length > 0
-      );
       const existing = getByIsin?.(f.isin.toUpperCase());
       upsertIsin({
         isin: f.isin.toUpperCase(),
         name: f.name,
         assetType: existing?.assetType ?? 'Fondos MyInvestor',
-        geography: f.threeDim?.geography ?? existing?.geography ?? [],
-        sectors: f.threeDim?.sectors ?? existing?.sectors ?? [],
-        assetClassPro: f.threeDim?.assetClassPro ?? existing?.assetClassPro ?? [],
+        geography: existing?.geography ?? [],
+        sectors: existing?.sectors ?? [],
+        assetClassPro: existing?.assetClassPro ?? [],
       });
-      if (hasClassification) {
-        toast.success(`Clasificación de ${f.isin} guardada en librería`);
-      }
     });
     onSave(validFunds);
     toast.success('Desglose de fondos guardado');
   };
 
-  const handleSaveThreeDim = (td: ThreeDimensionClassification) => {
-    if (!editingFundId) return;
-    setFunds(funds.map(f => f.id === editingFundId ? { ...f, threeDim: td } : f));
-    setEditingFundId(null);
-  };
-
-  const editingFund = editingFundId ? funds.find(f => f.id === editingFundId) : null;
-
-  const autoCalculateWeights = () => {
+  const autoDistribute = () => {
     if (funds.length === 0) return;
-    const evenWeight = parseFloat((100 / funds.length).toFixed(1));
-    const remainder = parseFloat((100 - evenWeight * funds.length).toFixed(1));
-    setFunds(funds.map((f, i) => ({
-      ...f,
-      weightPct: i === 0 ? evenWeight + remainder : evenWeight,
-    })));
-    toast.info('Pesos distribuidos equitativamente. Ajusta según composición real.');
+    const even = parseFloat((100 / funds.length).toFixed(1));
+    const rem = parseFloat((100 - even * funds.length).toFixed(1));
+    setFunds(prev => prev.map((f, i) => ({ ...f, weightPct: i === 0 ? even + rem : even })));
+    toast.info('Pesos distribuidos equitativamente');
   };
 
   return (
@@ -113,20 +92,20 @@ export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, 
         onClick={() => setExpanded(!expanded)}
       >
         {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <span className="text-sm font-medium">Desglose de Fondos Internos</span>
+        <span className="text-sm font-medium">Desglose de Fondos — {roboName}</span>
         <span className="text-xs text-muted-foreground ml-auto">
-          {funds.length} fondo(s) · {totalWeight.toFixed(1)}%
+          {funds.length} fondo(s)
         </span>
       </button>
 
       {expanded && (
         <div className="p-3 pt-0 space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pt-2">
             <Button size="sm" variant="outline" onClick={addFund} className="gap-1 h-7 text-xs">
-              <Plus className="h-3 w-3" /> Añadir Fondo
+              <Plus className="h-3 w-3" /> Añadir fondo
             </Button>
-            {funds.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={autoCalculateWeights} className="h-7 text-xs">
+            {funds.length > 1 && (
+              <Button size="sm" variant="ghost" onClick={autoDistribute} className="h-7 text-xs">
                 Distribuir pesos
               </Button>
             )}
@@ -137,58 +116,58 @@ export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs w-28">ISIN</TableHead>
-                    <TableHead className="text-xs">Nombre Fondo</TableHead>
-                    <TableHead className="text-xs text-right w-20">% Peso</TableHead>
-                    <TableHead className="text-xs w-24">Clasificación</TableHead>
-                    <TableHead className="w-16" />
+                    <TableHead className="text-xs w-32">ISIN</TableHead>
+                    <TableHead className="text-xs">Nombre del Fondo</TableHead>
+                    <TableHead className="text-xs text-right w-20">Peso (%)</TableHead>
+                    <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {funds.map(f => {
-                    const hasClassification = f.threeDim && (
-                      f.threeDim.geography.length > 0 || f.threeDim.sectors.length > 0 || f.threeDim.assetClassPro.length > 0
-                    );
+                    const isKnown = !!(f.isin && getByIsin?.(f.isin.toUpperCase()));
                     return (
                       <TableRow key={f.id}>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             value={f.isin}
                             onChange={e => updateFund(f.id, 'isin', e.target.value)}
                             onBlur={() => handleIsinBlur(f)}
                             className="h-7 text-xs font-mono"
-                            placeholder="ES0000000000"
+                            placeholder="IE00B4L5Y983"
+                            data-testid={`input-isin-${f.id}`}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             value={f.name}
-                            onChange={e => updateFund(f.id, 'name', e.target.value)}
-                            className="h-7 text-xs"
+                            onChange={e => !isKnown && updateFund(f.id, 'name', e.target.value)}
+                            readOnly={isKnown}
+                            className={`h-7 text-xs ${isKnown ? 'bg-muted/50 cursor-default text-muted-foreground' : ''}`}
                             placeholder="Nombre del fondo"
+                            data-testid={`input-name-${f.id}`}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             type="number"
-                            value={f.weightPct}
+                            value={f.weightPct || ''}
                             onChange={e => updateFund(f.id, 'weightPct', parseFloat(e.target.value) || 0)}
-                            className="h-7 text-xs text-right w-16"
+                            className="h-7 text-xs text-right"
                             step="0.1"
+                            min={0}
+                            max={100}
+                            placeholder="0"
+                            data-testid={`input-weight-${f.id}`}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="h-6 text-[10px] px-2"
-                            onClick={() => setEditingFundId(f.id)}
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeFund(f.id)}
+                            data-testid={`button-remove-${f.id}`}
                           >
-                            {hasClassification ? '✅ 3D' : '⚙️ Clasificar'}
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeFund(f.id)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </TableCell>
@@ -202,23 +181,24 @@ export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, 
 
           {funds.length > 0 && (
             <div className="flex items-center justify-between pt-2 border-t border-border/30">
-              <span className={`text-xs font-mono ${Math.abs(totalWeight - 100) > 1 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                Total: {totalWeight.toFixed(1)}% {Math.abs(totalWeight - 100) > 1 ? '⚠️' : '✓'}
+              <span
+                className={`text-xs font-mono font-medium ${weightOk ? 'text-muted-foreground' : 'text-destructive'}`}
+                data-testid="text-weight-total"
+              >
+                Total: {totalWeight.toFixed(1)}%
+                {!weightOk && ` — faltan ${(100 - totalWeight).toFixed(1)}%`}
+                {weightOk && funds.length > 0 && ' ✓'}
               </span>
-              <Button size="sm" onClick={handleSave} className="h-7 text-xs">
-                Guardar desglose
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={!weightOk && funds.length > 0}
+                className="h-7 text-xs"
+                data-testid="button-save-subfunds"
+              >
+                Guardar
               </Button>
             </div>
-          )}
-
-          {editingFund && (
-            <ThreeDimEditor
-              open={!!editingFundId}
-              onClose={() => setEditingFundId(null)}
-              assetName={editingFund.name || 'Fondo sin nombre'}
-              initial={editingFund.threeDim}
-              onSave={handleSaveThreeDim}
-            />
           )}
         </div>
       )}

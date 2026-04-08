@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader as Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +22,18 @@ export default function Index() {
   const isinLib = useIsinLibrary();
   const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
+
+  const mergedIsinLibrary = useMemo(() => {
+    const map = new Map<string, typeof isinLib.entries[0]>();
+    isinLib.entries.forEach(e => map.set(e.isin, e));
+    p.isinLibrary.forEach(e => {
+      const existing = map.get(e.isin);
+      if (!existing || e.geography?.length || e.sectors?.length || e.assetClassPro?.length) {
+        map.set(e.isin, e as typeof isinLib.entries[0]);
+      }
+    });
+    return Array.from(map.values());
+  }, [isinLib.entries, p.isinLibrary]);
 
   if (p.loading) {
     return (
@@ -142,7 +154,7 @@ export default function Index() {
               entityFilter={entityFilter}
               assets={p.assets}
               roboAdvisors={p.roboAdvisors}
-              isinLibrary={isinLib.entries}
+              isinLibrary={mergedIsinLibrary}
               roboConstituents={roboConsts.constituents}
               onUpdateIsinClassification={isinLib.updateIsinClassification}
               onUpdateRoboSubFunds={p.updateRoboSubFunds}
