@@ -200,6 +200,68 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  // ---- Fund composition from movements ----
+  const calcComposition = (robo: RoboAdvisor) => {
+    const movs = robo.movements || [];
+    // Group by ISIN, sum net amounts
+    const byIsin: Record<string, { name: string; net: number }> = {};
+    movs.forEach(m => {
+      const isin = (m.isin || '').trim().toUpperCase();
+      if (!isin) return;
+      if (!byIsin[isin]) byIsin[isin] = { name: m.fundName || m.description || isin, net: 0 };
+      byIsin[isin].net += m.amount;
+    });
+    // Only keep positive net positions
+    const entries = Object.entries(byIsin).filter(([, v]) => v.net > 0);
+    const totalNet = entries.reduce((s, [, v]) => s + v.net, 0);
+    const items: FundBreakdownItem[] = entries.map(([isin, v]) => ({
+      isin,
+      name: v.name,
+      netAmount: v.net,
+      weightPct: totalNet > 0 ? Math.round((v.net / totalNet) * 10000) / 100 : 0,
+    }));
+    items.sort((a, b) => b.weightPct - a.weightPct);
+    return items;
+  };
+
+  const openComposition = (robo: RoboAdvisor) => {
+    setCompDialogId(robo.id);
+    setCompItems(calcComposition(robo));
+  };
+
+  const recalcComposition = () => {
+    if (!compDialogId) return;
+    const robo = robos.find(r => r.id === compDialogId);
+    if (!robo) return;
+    setCompItems(calcComposition(robo));
+    toast.success('Composición recalculada desde movimientos');
+  };
+
+  const updateCompWeight = (idx: number, newWeight: string) => {
+    const updated = [...compItems];
+    updated[idx] = { ...updated[idx], weightPct: parseFloat(newWeight) || 0 };
+    setCompItems(updated);
+  };
+
+  const saveComposition = () => {
+    if (!compDialogId) return;
+    const totalW = compItems.reduce((s, i) => s + i.weightPct, 0);
+    if (compItems.length > 0 && Math.abs(totalW - 100) > 1) {
+      toast.error(`Los pesos suman ${totalW.toFixed(1)}%, deben sumar 100%`);
+      return;
+    }
+    const subFunds = compItems.map(i => ({
+      id: crypto.randomUUID(),
+      isin: i.isin,
+      name: i.name,
+      weightPct: i.weightPct,
+    }));
+    onUpdate(compDialogId, { subFunds });
+    setCompDialogId(null);
+    toast.success('Composición guardada como sub-fondos');
+  };
+
+
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
