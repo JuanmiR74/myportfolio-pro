@@ -47,6 +47,10 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const [addingMov, setAddingMov] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Fund composition states
+  const [compDialogId, setCompDialogId] = useState<string | null>(null);
+  const [compItems, setCompItems] = useState<FundBreakdownItem[]>([]);
+
   const handleSubmit = () => {
     if (!form.name || !form.entity || !form.totalValue) return;
     onAdd({
