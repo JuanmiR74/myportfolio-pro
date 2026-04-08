@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { RoboSubFund, ThreeDimensionClassification } from '@/types/portfolio';
+import { RoboSubFund, ThreeDimensionClassification, IsinEntry } from '@/types/portfolio';
 import ThreeDimEditor from './ThreeDimEditor';
 
 interface Props {
   subFunds: RoboSubFund[];
   onSave: (subFunds: RoboSubFund[]) => void;
   roboName: string;
+  getByIsin?: (isin: string) => IsinEntry | undefined;
+  upsertIsin?: (entry: Omit<IsinEntry, 'id'> & { id?: string }) => void;
 }
 
-export default function SubFundsEditor({ subFunds, onSave, roboName }: Props) {
+export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, upsertIsin }: Props) {
   const [funds, setFunds] = useState<RoboSubFund[]>(subFunds);
   const [editingFundId, setEditingFundId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
@@ -31,12 +32,30 @@ export default function SubFundsEditor({ subFunds, onSave, roboName }: Props) {
     setFunds([...funds, newFund]);
   };
 
-  const updateFund = (id: string, field: keyof RoboSubFund, value: string | number) => {
+  const updateFund = (id: string, field: keyof RoboSubFund, value: string | number | ThreeDimensionClassification) => {
     setFunds(funds.map(f => f.id === id ? { ...f, [field]: value } : f));
   };
 
   const removeFund = (id: string) => {
     setFunds(funds.filter(f => f.id !== id));
+  };
+
+  const handleIsinBlur = (fund: RoboSubFund) => {
+    if (!getByIsin || !fund.isin.trim()) return;
+    const entry = getByIsin(fund.isin.trim().toUpperCase());
+    if (entry) {
+      setFunds(prev => prev.map(f => {
+        if (f.id !== fund.id) return f;
+        return {
+          ...f,
+          name: f.name || entry.name,
+          ...(entry.geography?.length || entry.sectors?.length || entry.assetClassPro?.length
+            ? { threeDim: { geography: entry.geography ?? [], sectors: entry.sectors ?? [], assetClassPro: entry.assetClassPro ?? [] } }
+            : {}),
+        };
+      }));
+      toast.info('Datos recuperados de la librería ISIN');
+    }
   };
 
   const handleSave = () => {
@@ -46,6 +65,24 @@ export default function SubFundsEditor({ subFunds, onSave, roboName }: Props) {
       toast.error(`Los pesos suman ${total.toFixed(1)}%, deben sumar 100%`);
       return;
     }
+    validFunds.forEach(f => {
+      if (!upsertIsin || !f.isin.trim()) return;
+      const hasClassification = f.threeDim && (
+        f.threeDim.geography.length > 0 || f.threeDim.sectors.length > 0 || f.threeDim.assetClassPro.length > 0
+      );
+      const existing = getByIsin?.(f.isin.toUpperCase());
+      upsertIsin({
+        isin: f.isin.toUpperCase(),
+        name: f.name,
+        assetType: existing?.assetType ?? 'Fondos MyInvestor',
+        geography: f.threeDim?.geography ?? existing?.geography ?? [],
+        sectors: f.threeDim?.sectors ?? existing?.sectors ?? [],
+        assetClassPro: f.threeDim?.assetClassPro ?? existing?.assetClassPro ?? [],
+      });
+      if (hasClassification) {
+        toast.success(`Clasificación de ${f.isin} guardada en librería`);
+      }
+    });
     onSave(validFunds);
     toast.success('Desglose de fondos guardado');
   };
@@ -58,7 +95,6 @@ export default function SubFundsEditor({ subFunds, onSave, roboName }: Props) {
 
   const editingFund = editingFundId ? funds.find(f => f.id === editingFundId) : null;
 
-  // Auto-calculate weights from movements analysis
   const autoCalculateWeights = () => {
     if (funds.length === 0) return;
     const evenWeight = parseFloat((100 / funds.length).toFixed(1));
@@ -119,6 +155,7 @@ export default function SubFundsEditor({ subFunds, onSave, roboName }: Props) {
                           <Input
                             value={f.isin}
                             onChange={e => updateFund(f.id, 'isin', e.target.value)}
+                            onBlur={() => handleIsinBlur(f)}
                             className="h-7 text-xs font-mono"
                             placeholder="ES0000000000"
                           />

@@ -91,10 +91,10 @@ export interface IsinEntry {
   id: string;
   isin: string;
   name: string;
-  assetType: AssetType;
-  geography: WeightedItem<GeoZone>[];
-  sectors: WeightedItem<SectorName>[];
-  assetClassPro: WeightedItem<AssetClassPro>[];
+  assetType: string;
+  geography: { name: string; weight: number }[];
+  sectors: { name: string; weight: number }[];
+  assetClassPro: { name: string; weight: number }[];
 }
 
 export interface PortfolioState {

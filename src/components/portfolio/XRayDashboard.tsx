@@ -5,8 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Pencil } from 'lucide-react';
-import { Asset, RoboAdvisor, ThreeDimensionClassification, RoboSubFund } from '@/types/portfolio';
-import { IsinEntry } from '@/hooks/useIsinLibrary';
+import { Asset, RoboAdvisor, ThreeDimensionClassification, RoboSubFund, IsinEntry } from '@/types/portfolio';
 import { RoboConstituent } from '@/hooks/useRoboConstituents';
 import ThreeDimEditor from '@/components/portfolio/ThreeDimEditor';
 import SubFundsEditor from '@/components/portfolio/SubFundsEditor';
@@ -33,6 +32,8 @@ interface Props {
   roboConstituents: RoboConstituent[];
   onUpdateIsinClassification: (isin: string, td: ThreeDimensionClassification) => void;
   onUpdateRoboSubFunds: (id: string, subFunds: RoboSubFund[]) => void;
+  getByIsin?: (isin: string) => IsinEntry | undefined;
+  upsertIsin?: (entry: Omit<IsinEntry, 'id'> & { id?: string }) => void;
 }
 
 function fmt(n: number) {
@@ -147,7 +148,7 @@ const ACP_COLORS: Record<string, string> = {
   'Sin clasificar': 'hsl(0, 0%, 50%)',
 };
 
-export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isinLibrary, roboConstituents, onUpdateIsinClassification, onUpdateRoboSubFunds }: Props) {
+export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isinLibrary, roboConstituents, onUpdateIsinClassification, onUpdateRoboSubFunds, getByIsin, upsertIsin }: Props) {
   const [editingItem, setEditingItem] = useState<XRayAsset | null>(null);
 
   // Build a lookup: isin -> IsinEntry
@@ -388,6 +389,8 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
               subFunds={editingRobo.subFunds || []}
               onSave={(subFunds) => onUpdateRoboSubFunds(editingRobo.id, subFunds)}
               roboName={editingRobo.name}
+              getByIsin={getByIsin}
+              upsertIsin={upsertIsin}
             />
           )}
         </ThreeDimEditor>

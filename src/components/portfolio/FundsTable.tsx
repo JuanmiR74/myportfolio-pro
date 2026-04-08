@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trash2, Plus, Filter, Pencil, Check, X, History } from 'lucide-react';
-import { Asset, AssetType } from '@/types/portfolio';
+import { Asset, AssetType, IsinEntry } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +9,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { TransactionHistory } from '@/components/portfolio/TransactionHistory';
+import { toast } from 'sonner';
 
 interface Props {
   assets: Asset[];
   onAdd: (asset: Omit<Asset, 'id'>) => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Asset>) => void;
+  getByIsin?: (isin: string) => IsinEntry | undefined;
+  upsertIsin?: (entry: Omit<IsinEntry, 'id'> & { id?: string }) => void;
 }
 
 function fmt(n: number) {
@@ -23,7 +26,7 @@ function fmt(n: number) {
 
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK';
 
-export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props) {
+export default function FundsTable({ assets, onAdd, onRemove, onUpdate, getByIsin, upsertIsin }: Props) {
   const [open, setOpen] = useState(false);
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,15 +39,34 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
     ? assets.filter(a => a.type === 'Fondos MyInvestor' || a.type === 'Fondos BBK')
     : assets.filter(a => a.type === (entityFilter === 'MyInvestor' ? 'Fondos MyInvestor' : 'Fondos BBK'));
 
+  const handleIsinBlur = () => {
+    if (!getByIsin || !form.ticker.trim()) return;
+    const entry = getByIsin(form.ticker.trim().toUpperCase());
+    if (entry) {
+      setForm(prev => ({ ...prev, name: prev.name || entry.name, type: (entry.assetType as AssetType) || prev.type }));
+      toast.info('Datos recuperados de la librería ISIN');
+    }
+  };
+
   const handleSubmit = () => {
     if (!form.name || !form.ticker || !form.shares || !form.buyPrice) return;
+    const isin = form.ticker.toUpperCase();
     onAdd({
       name: form.name,
-      ticker: form.ticker.toUpperCase(),
+      ticker: isin,
+      isin,
       type: form.type,
       shares: parseFloat(form.shares),
-      buyPrice: parseFloat(form.buyPrice), // Importe ABSOLUTO aportado
+      buyPrice: parseFloat(form.buyPrice),
       currentPrice: parseFloat(form.currentPrice || "0"),
+    });
+    upsertIsin?.({
+      isin,
+      name: form.name,
+      assetType: form.type,
+      geography: [],
+      sectors: [],
+      assetClassPro: [],
     });
     setForm({ name: '', ticker: '', type: 'Fondos MyInvestor', shares: '', buyPrice: '', currentPrice: '' });
     setOpen(false);
@@ -105,7 +127,7 @@ export default function FundsTable({ assets, onAdd, onRemove, onUpdate }: Props)
               <DialogHeader><DialogTitle>Añadir Fondo</DialogTitle></DialogHeader>
               <div className="grid gap-3">
                 <div><Label>Nombre</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej: Fidelity MSCI World" /></div>
-                <div><Label>ISIN / Ticker</Label><Input value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} placeholder="Ej: IE00BYX5NX33" /></div>
+                <div><Label>ISIN / Ticker</Label><Input value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} onBlur={handleIsinBlur} placeholder="Ej: IE00BYX5NX33" /></div>
                 <div>
                   <Label>Entidad</Label>
                   <Select value={form.type} onValueChange={v => setForm({ ...form, type: v as AssetType })}>
