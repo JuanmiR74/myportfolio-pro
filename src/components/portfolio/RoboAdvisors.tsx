@@ -20,6 +20,13 @@ interface Props {
   onRemove: (id: string) => void;
 }
 
+interface FundBreakdownItem {
+  isin: string;
+  name: string;
+  netAmount: number;
+  weightPct: number;
+}
+
 function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
