@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X, ListTree } from 'lucide-react';
+import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X } from 'lucide-react';
 import { RoboAdvisor, RoboMovement, AssetClass, SectorGeo, RoboAdvisorAllocation, RoboAdvisorSectorAllocation } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,13 +18,6 @@ interface Props {
   onAdd: (r: Omit<RoboAdvisor, 'id'>) => void;
   onUpdate: (id: string, updates: Partial<RoboAdvisor>) => void;
   onRemove: (id: string) => void;
-}
-
-interface FundBreakdownItem {
-  isin: string;
-  name: string;
-  netAmount: number;
-  weightPct: number;
 }
 
 function fmt(n: number) {
@@ -46,10 +39,6 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const [movForm, setMovForm] = useState({ date: '', description: '', amount: '', commission: '', isin: '' });
   const [addingMov, setAddingMov] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // Fund composition states
-  const [compDialogId, setCompDialogId] = useState<string | null>(null);
-  const [compItems, setCompItems] = useState<FundBreakdownItem[]>([]);
 
   const handleSubmit = () => {
     if (!form.name || !form.entity || !form.totalValue) return;
@@ -200,68 +189,6 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  // ---- Fund composition from movements ----
-  const calcComposition = (robo: RoboAdvisor) => {
-    const movs = robo.movements || [];
-    // Group by ISIN, sum net amounts
-    const byIsin: Record<string, { name: string; net: number }> = {};
-    movs.forEach(m => {
-      const isin = (m.isin || '').trim().toUpperCase();
-      if (!isin) return;
-      if (!byIsin[isin]) byIsin[isin] = { name: m.fundName || m.description || isin, net: 0 };
-      byIsin[isin].net += m.amount;
-    });
-    // Only keep positive net positions
-    const entries = Object.entries(byIsin).filter(([, v]) => v.net > 0);
-    const totalNet = entries.reduce((s, [, v]) => s + v.net, 0);
-    const items: FundBreakdownItem[] = entries.map(([isin, v]) => ({
-      isin,
-      name: v.name,
-      netAmount: v.net,
-      weightPct: totalNet > 0 ? Math.round((v.net / totalNet) * 10000) / 100 : 0,
-    }));
-    items.sort((a, b) => b.weightPct - a.weightPct);
-    return items;
-  };
-
-  const openComposition = (robo: RoboAdvisor) => {
-    setCompDialogId(robo.id);
-    setCompItems(calcComposition(robo));
-  };
-
-  const recalcComposition = () => {
-    if (!compDialogId) return;
-    const robo = robos.find(r => r.id === compDialogId);
-    if (!robo) return;
-    setCompItems(calcComposition(robo));
-    toast.success('Composición recalculada desde movimientos');
-  };
-
-  const updateCompWeight = (idx: number, newWeight: string) => {
-    const updated = [...compItems];
-    updated[idx] = { ...updated[idx], weightPct: parseFloat(newWeight) || 0 };
-    setCompItems(updated);
-  };
-
-  const saveComposition = () => {
-    if (!compDialogId) return;
-    const totalW = compItems.reduce((s, i) => s + i.weightPct, 0);
-    if (compItems.length > 0 && Math.abs(totalW - 100) > 1) {
-      toast.error(`Los pesos suman ${totalW.toFixed(1)}%, deben sumar 100%`);
-      return;
-    }
-    const subFunds = compItems.map(i => ({
-      id: crypto.randomUUID(),
-      isin: i.isin,
-      name: i.name,
-      weightPct: i.weightPct,
-    }));
-    onUpdate(compDialogId, { subFunds });
-    setCompDialogId(null);
-    toast.success('Composición guardada como sub-fondos');
-  };
-
-
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -339,9 +266,6 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => { setMovDialogId(r.id); setAddingMov(false); setEditingMovIdx(null); }} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Ver Movimientos">
                         <Table2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openComposition(r)} className="h-8 w-8 text-muted-foreground hover:text-accent-foreground" title="Composición de Fondos">
-                        <ListTree className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => openAllocDialog(r)} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar Distribución">
                         <PieChart className="h-4 w-4" />
@@ -493,71 +417,7 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           </DialogContent>
         </Dialog>
 
-        {/* Fund Composition Dialog */}
-        <Dialog open={!!compDialogId} onOpenChange={open => { if (!open) setCompDialogId(null); }}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ListTree className="h-5 w-5 text-primary" />
-                Composición de Fondos — {robos.find(r => r.id === compDialogId)?.name}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {compItems.length} fondo(s) detectado(s) · Total pesos: <span className="font-mono font-medium text-foreground">{compItems.reduce((s, i) => s + i.weightPct, 0).toFixed(1)}%</span>
-                </p>
-                <Button size="sm" variant="outline" onClick={recalcComposition} className="gap-1">
-                  🔄 Recalcular
-                </Button>
-              </div>
-
-              {compItems.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <ListTree className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">No se han encontrado fondos con ISIN en los movimientos.</p>
-                  <p className="text-xs mt-1">Asegúrate de que los movimientos tienen el campo ISIN rellenado.</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ISIN</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead className="text-right">Importe Neto</TableHead>
-                      <TableHead className="text-right w-24">Peso %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {compItems.map((item, idx) => (
-                      <TableRow key={item.isin}>
-                        <TableCell className="font-mono text-xs">{item.isin}</TableCell>
-                        <TableCell className="text-sm">{item.name}</TableCell>
-                        <TableCell className="text-right font-mono text-sm">{fmt(item.netAmount)}</TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            value={item.weightPct}
-                            onChange={e => updateCompWeight(idx, e.target.value)}
-                            className="w-20 h-7 text-right text-sm ml-auto"
-                            step="0.1"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCompDialogId(null)}>Cancelar</Button>
-                <Button onClick={saveComposition} disabled={compItems.length === 0}>Guardar como Sub-fondos</Button>
-              </DialogFooter>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos · 🌳 Composición Fondos · 📊 Distribución · ✏️ Editar Saldo</p>
+        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos sincronizados con Supabase · 📊 Distribución · ✏️ Editar Saldo</p>
       </CardContent>
     </Card>
   );
