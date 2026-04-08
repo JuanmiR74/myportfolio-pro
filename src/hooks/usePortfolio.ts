@@ -17,40 +17,118 @@ function emptyThreeDim(): ThreeDimensionClassification {
   return { geography: [], sectors: [], assetClassPro: [] };
 }
 
+// ---- DB row <-> domain converters ----
+
+function rowToAsset(row: any): Asset {
+  return {
+    id: row.id,
+    name: row.name,
+    ticker: row.ticker,
+    isin: row.isin || undefined,
+    entity: row.entity || undefined,
+    type: row.type as Asset['type'],
+    shares: Number(row.shares),
+    buyPrice: Number(row.buy_price),
+    currentPrice: Number(row.current_price),
+    threeDim: {
+      geography: Array.isArray(row.geography) ? row.geography : [],
+      sectors: Array.isArray(row.sectors) ? row.sectors : [],
+      assetClassPro: Array.isArray(row.asset_class_pro) ? row.asset_class_pro : [],
+    },
+  };
+}
+
+function assetToRow(a: Asset, userId: string) {
+  return {
+    id: a.id,
+    user_id: userId,
+    name: a.name,
+    ticker: a.ticker,
+    isin: a.isin || null,
+    entity: a.entity || '',
+    type: a.type,
+    shares: a.shares,
+    buy_price: a.buyPrice,
+    current_price: a.currentPrice,
+    geography: a.threeDim?.geography || [],
+    sectors: a.threeDim?.sectors || [],
+    asset_class_pro: a.threeDim?.assetClassPro || [],
+  };
+}
+
+function rowToRobo(row: any): RoboAdvisor {
+  return {
+    id: row.id,
+    name: row.name,
+    entity: row.entity || '',
+    totalValue: Number(row.total_value),
+    investedValue: Number(row.invested_value),
+    lastUpdated: row.last_updated || '',
+    allocations: Array.isArray(row.allocations) ? row.allocations : [],
+    sectorAllocations: Array.isArray(row.sector_allocations) ? row.sector_allocations : [],
+    movements: Array.isArray(row.movements) ? row.movements : [],
+    subFunds: Array.isArray(row.sub_funds) ? row.sub_funds : [],
+    threeDim: {
+      geography: Array.isArray(row.geography) ? row.geography : [],
+      sectors: Array.isArray(row.sectors) ? row.sectors : [],
+      assetClassPro: Array.isArray(row.asset_class_pro) ? row.asset_class_pro : [],
+    },
+  };
+}
+
+function roboToRow(r: RoboAdvisor, userId: string) {
+  return {
+    id: r.id,
+    user_id: userId,
+    name: r.name,
+    entity: r.entity,
+    total_value: r.totalValue,
+    invested_value: r.investedValue,
+    last_updated: r.lastUpdated || null,
+    allocations: r.allocations || [],
+    sector_allocations: r.sectorAllocations || [],
+    movements: r.movements || [],
+    sub_funds: r.subFunds || [],
+    geography: r.threeDim?.geography || [],
+    sectors: r.threeDim?.sectors || [],
+    asset_class_pro: r.threeDim?.assetClassPro || [],
+  };
+}
+
 export function usePortfolio() {
   const { user } = useAuth();
   const [state, setState] = useState<PortfolioState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load full portfolio document on mount
+  // Load from relational tables on mount
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
     const load = async () => {
       try {
-        const { data, error } = await (supabase
-          .from('user_portfolio')
-          .select('data')
-          .eq('user_id', user.id)
-          .maybeSingle() as any);
+        const [assetsRes, robosRes, settingsRes, isinRes] = await Promise.all([
+          supabase.from('assets').select('*').eq('user_id', user.id),
+          supabase.from('robo_advisors').select('*').eq('user_id', user.id),
+          supabase.from('portfolio_settings').select('*').eq('user_id', user.id).maybeSingle(),
+          supabase.from('isin_library').select('*').eq('user_id', user.id),
+        ]);
 
-        if (error) {
-          toast.error(`Error cargando cartera: ${error.message}`);
-          return;
-        }
-
-        if (data?.data) {
-          const parsed = data.data as Partial<PortfolioState>;
-          setState({
-            assets: parsed.assets || [],
-            roboAdvisors: parsed.roboAdvisors || [],
-            cashBalance: parsed.cashBalance ?? 0,
-            apiKey: parsed.apiKey || '',
-            historicalData: parsed.historicalData || [],
-            isinLibrary: parsed.isinLibrary || [],
-          });
-        }
+        setState({
+          assets: (assetsRes.data || []).map(rowToAsset),
+          roboAdvisors: (robosRes.data || []).map(rowToRobo),
+          cashBalance: Number(settingsRes.data?.cash_balance ?? 0),
+          apiKey: settingsRes.data?.api_key || '',
+          historicalData: Array.isArray(settingsRes.data?.historical_data) ? settingsRes.data.historical_data as any : [],
+          isinLibrary: (isinRes.data || []).map((r: any): IsinEntry => ({
+            id: r.id,
+            isin: r.isin,
+            name: r.name,
+            assetType: r.asset_type,
+            geography: Array.isArray(r.geography) ? r.geography : [],
+            sectors: Array.isArray(r.sectors) ? r.sectors : [],
+            assetClassPro: Array.isArray(r.asset_class_pro) ? r.asset_class_pro : [],
+          })),
+        });
       } catch (err: any) {
         toast.error(`Error cargando cartera: ${err?.message || 'Error desconocido'}`);
       } finally {
@@ -61,46 +139,46 @@ export function usePortfolio() {
     load();
   }, [user]);
 
-  // Persist the full state document to Supabase (debounced)
-  const savePortfolio = useCallback((newState: PortfolioState) => {
-    if (!user) return;
+  // ---- Asset CRUD ----
 
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
-      const { error } = await (supabase
-        .from('user_portfolio')
-        .upsert({ user_id: user.id, data: newState as any, updated_at: new Date().toISOString() }) as any);
-
-      if (error) {
-        console.error('Error saving portfolio:', error.message);
-      }
-    }, 600);
-  }, [user]);
-
-  // Helper: update state and schedule a save
-  const mutate = useCallback((updater: (prev: PortfolioState) => PortfolioState) => {
-    setState(prev => {
-      const next = updater(prev);
-      savePortfolio(next);
-      return next;
-    });
-  }, [savePortfolio]);
-
-  const addAsset = useCallback((asset: Omit<Asset, 'id'>) => {
+  const addAsset = useCallback(async (asset: Omit<Asset, 'id'>) => {
     if (!user) return;
     const newAsset: Asset = { ...asset, id: crypto.randomUUID(), threeDim: asset.threeDim || emptyThreeDim() };
-    mutate(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
+    const { error } = await supabase.from('assets').insert(assetToRow(newAsset, user.id) as any);
+    if (error) toast.error(`Error guardando activo: ${error.message}`);
+  }, [user]);
 
-  const removeAsset = useCallback((id: string) => {
+  const removeAsset = useCallback(async (id: string) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
+    const { error } = await supabase.from('assets').delete().eq('id', id).eq('user_id', user.id);
+    if (error) toast.error(`Error eliminando activo: ${error.message}`);
+  }, [user]);
 
-  const updateAsset = useCallback((id: string, updates: Partial<Asset>) => {
+  const updateAsset = useCallback(async (id: string, updates: Partial<Asset>) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, assets: prev.assets.map(a => a.id === id ? { ...a, ...updates } : a) }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, assets: prev.assets.map(a => a.id === id ? { ...a, ...updates } : a) }));
+    // Build DB-level updates
+    const dbUpdates: Record<string, any> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.ticker !== undefined) dbUpdates.ticker = updates.ticker;
+    if (updates.isin !== undefined) dbUpdates.isin = updates.isin;
+    if (updates.entity !== undefined) dbUpdates.entity = updates.entity;
+    if (updates.type !== undefined) dbUpdates.type = updates.type;
+    if (updates.shares !== undefined) dbUpdates.shares = updates.shares;
+    if (updates.buyPrice !== undefined) dbUpdates.buy_price = updates.buyPrice;
+    if (updates.currentPrice !== undefined) dbUpdates.current_price = updates.currentPrice;
+    if (updates.threeDim) {
+      dbUpdates.geography = updates.threeDim.geography || [];
+      dbUpdates.sectors = updates.threeDim.sectors || [];
+      dbUpdates.asset_class_pro = updates.threeDim.assetClassPro || [];
+    }
+    if (Object.keys(dbUpdates).length > 0) {
+      const { error } = await supabase.from('assets').update(dbUpdates as any).eq('id', id).eq('user_id', user.id);
+      if (error) toast.error(`Error actualizando activo: ${error.message}`);
+    }
+  }, [user]);
 
   const updateAssetClassification = useCallback((id: string, classification: FundClassification) => {
     updateAsset(id, { classification });
@@ -110,16 +188,53 @@ export function usePortfolio() {
     updateAsset(id, { threeDim });
   }, [updateAsset]);
 
-  const addRoboAdvisor = useCallback((robo: Omit<RoboAdvisor, 'id'>) => {
+  const updatePrices = useCallback((prices: Record<string, number>) => {
+    if (!user) return;
+    setState(prev => {
+      const updated = prev.assets.map(a => prices[a.ticker] !== undefined ? { ...a, currentPrice: prices[a.ticker] } : a);
+      // Fire-and-forget individual updates
+      updated.forEach(a => {
+        if (prices[a.ticker] !== undefined) {
+          supabase.from('assets').update({ current_price: prices[a.ticker] } as any).eq('id', a.id).eq('user_id', user.id);
+        }
+      });
+      return { ...prev, assets: updated };
+    });
+  }, [user]);
+
+  // ---- RoboAdvisor CRUD ----
+
+  const addRoboAdvisor = useCallback(async (robo: Omit<RoboAdvisor, 'id'>) => {
     if (!user) return;
     const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
-    mutate(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
+    const { error } = await supabase.from('robo_advisors').insert(roboToRow(newRobo, user.id) as any);
+    if (error) toast.error(`Error guardando robo: ${error.message}`);
+  }, [user]);
 
-  const updateRoboAdvisor = useCallback((id: string, updates: Partial<RoboAdvisor>) => {
+  const updateRoboAdvisor = useCallback(async (id: string, updates: Partial<RoboAdvisor>) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r) }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.map(r => r.id === id ? { ...r, ...updates } : r) }));
+    const dbUpdates: Record<string, any> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.entity !== undefined) dbUpdates.entity = updates.entity;
+    if (updates.totalValue !== undefined) dbUpdates.total_value = updates.totalValue;
+    if (updates.investedValue !== undefined) dbUpdates.invested_value = updates.investedValue;
+    if (updates.lastUpdated !== undefined) dbUpdates.last_updated = updates.lastUpdated;
+    if (updates.allocations !== undefined) dbUpdates.allocations = updates.allocations;
+    if (updates.sectorAllocations !== undefined) dbUpdates.sector_allocations = updates.sectorAllocations;
+    if (updates.movements !== undefined) dbUpdates.movements = updates.movements;
+    if (updates.subFunds !== undefined) dbUpdates.sub_funds = updates.subFunds;
+    if (updates.threeDim) {
+      dbUpdates.geography = updates.threeDim.geography || [];
+      dbUpdates.sectors = updates.threeDim.sectors || [];
+      dbUpdates.asset_class_pro = updates.threeDim.assetClassPro || [];
+    }
+    if (Object.keys(dbUpdates).length > 0) {
+      const { error } = await supabase.from('robo_advisors').update(dbUpdates as any).eq('id', id).eq('user_id', user.id);
+      if (error) toast.error(`Error actualizando robo: ${error.message}`);
+    }
+  }, [user]);
 
   const updateRoboThreeDim = useCallback((id: string, threeDim: ThreeDimensionClassification) => {
     updateRoboAdvisor(id, { threeDim });
@@ -129,45 +244,73 @@ export function usePortfolio() {
     updateRoboAdvisor(id, { subFunds });
   }, [updateRoboAdvisor]);
 
-  const removeRoboAdvisor = useCallback((id: string) => {
+  const removeRoboAdvisor = useCallback(async (id: string) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, roboAdvisors: prev.roboAdvisors.filter(r => r.id !== id) }));
+    const { error } = await supabase.from('robo_advisors').delete().eq('id', id).eq('user_id', user.id);
+    if (error) toast.error(`Error eliminando robo: ${error.message}`);
+  }, [user]);
+
+  // ---- Settings ----
+
+  const saveSettings = useCallback(async (patch: Record<string, any>) => {
+    if (!user) return;
+    const { error } = await supabase.from('portfolio_settings').upsert({ id: 'default', user_id: user.id, ...patch } as any);
+    if (error) console.error('Error saving settings:', error.message);
+  }, [user]);
 
   const setApiKey = useCallback((apiKey: string) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, apiKey }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, apiKey }));
+    saveSettings({ api_key: apiKey });
+  }, [user, saveSettings]);
 
   const setCashBalance = useCallback((cashBalance: number) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, cashBalance }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, cashBalance }));
+    saveSettings({ cash_balance: cashBalance });
+  }, [user, saveSettings]);
+
+  // ---- ISIN Library ----
 
   const getByIsin = useCallback((isin: string): IsinEntry | undefined => {
     return state.isinLibrary.find(e => e.isin === isin);
   }, [state.isinLibrary]);
 
-  const upsertIsin = useCallback((entry: Omit<IsinEntry, 'id'> & { id?: string }) => {
+  const upsertIsin = useCallback(async (entry: Omit<IsinEntry, 'id'> & { id?: string }) => {
     if (!user) return;
-    mutate(prev => {
-      const existing = prev.isinLibrary.find(e => e.isin === entry.isin);
-      if (existing) {
-        return {
-          ...prev,
-          isinLibrary: prev.isinLibrary.map(e =>
-            e.isin === entry.isin ? { ...e, ...entry, id: e.id } : e
-          ),
-        };
-      }
+    const existing = state.isinLibrary.find(e => e.isin === entry.isin);
+    if (existing) {
+      setState(prev => ({
+        ...prev,
+        isinLibrary: prev.isinLibrary.map(e => e.isin === entry.isin ? { ...e, ...entry, id: e.id } : e),
+      }));
+      await supabase.from('isin_library').update({
+        name: entry.name,
+        asset_type: entry.assetType,
+        geography: entry.geography,
+        sectors: entry.sectors,
+        asset_class_pro: entry.assetClassPro,
+      } as any).eq('isin', entry.isin).eq('user_id', user.id);
+    } else {
       const newEntry: IsinEntry = { ...entry, id: entry.id || crypto.randomUUID() };
-      return { ...prev, isinLibrary: [...prev.isinLibrary, newEntry] };
-    });
-  }, [user, mutate]);
+      setState(prev => ({ ...prev, isinLibrary: [...prev.isinLibrary, newEntry] }));
+      await supabase.from('isin_library').insert({
+        id: newEntry.id,
+        user_id: user.id,
+        isin: newEntry.isin,
+        name: newEntry.name,
+        asset_type: newEntry.assetType,
+        geography: newEntry.geography,
+        sectors: newEntry.sectors,
+        asset_class_pro: newEntry.assetClassPro,
+      } as any);
+    }
+  }, [user, state.isinLibrary]);
 
-  const updateIsinClassification = useCallback((isin: string, threeDim: ThreeDimensionClassification) => {
+  const updateIsinClassification = useCallback(async (isin: string, threeDim: ThreeDimensionClassification) => {
     if (!user) return;
-    mutate(prev => ({
+    setState(prev => ({
       ...prev,
       isinLibrary: prev.isinLibrary.map(e =>
         e.isin === isin
@@ -175,20 +318,20 @@ export function usePortfolio() {
           : e
       ),
     }));
-  }, [user, mutate]);
+    await supabase.from('isin_library').update({
+      geography: threeDim.geography,
+      sectors: threeDim.sectors,
+      asset_class_pro: threeDim.assetClassPro,
+    } as any).eq('isin', isin).eq('user_id', user.id);
+  }, [user]);
 
-  const deleteIsin = useCallback((id: string) => {
+  const deleteIsin = useCallback(async (id: string) => {
     if (!user) return;
-    mutate(prev => ({ ...prev, isinLibrary: prev.isinLibrary.filter(e => e.id !== id) }));
-  }, [user, mutate]);
+    setState(prev => ({ ...prev, isinLibrary: prev.isinLibrary.filter(e => e.id !== id) }));
+    await supabase.from('isin_library').delete().eq('id', id).eq('user_id', user.id);
+  }, [user]);
 
-  const updatePrices = useCallback((prices: Record<string, number>) => {
-    if (!user) return;
-    mutate(prev => ({
-      ...prev,
-      assets: prev.assets.map(a => prices[a.ticker] !== undefined ? { ...a, currentPrice: prices[a.ticker] } : a),
-    }));
-  }, [user, mutate]);
+  // ---- Computed: summary ----
 
   const summary = useMemo(() => {
     const assetsValue = state.assets.reduce((s, a) => s + a.shares * a.currentPrice, 0);
@@ -221,6 +364,8 @@ export function usePortfolio() {
     ].filter(d => d.value > 0);
   }, [state]);
 
+  // ---- X-Ray aggregation ----
+
   const getXrayByEntity = useCallback((entity: 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors') => {
     const geoTotals: Record<string, number> = {};
     const sectorTotals: Record<string, number> = {};
@@ -245,7 +390,6 @@ export function usePortfolio() {
       } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
     });
 
-    // Build a fast lookup for the ISIN library
     const isinMap = new Map(state.isinLibrary.map(e => [e.isin, e]));
 
     const applyEntry = (entry: typeof state.isinLibrary[0] | undefined, amount: number) => {
@@ -266,14 +410,12 @@ export function usePortfolio() {
       const hasSubFunds = r.subFunds && r.subFunds.length > 0;
 
       if (hasSubFunds) {
-        // Always use isinLibrary for subFund classification — ignore legacy threeDim on the subFund
         r.subFunds!.forEach(sf => {
           const sfValue = value * sf.weightPct / 100;
           const entry = sf.isin ? isinMap.get(sf.isin.toUpperCase()) : undefined;
           applyEntry(entry, sfValue);
         });
       } else {
-        // No subFunds: fall back to robo-level threeDim classification
         const td = r.threeDim;
         if (td?.geography?.length) {
           td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
