@@ -87,10 +87,21 @@ export interface RoboAdvisor {
   subFunds?: RoboSubFund[];
 }
 
+export interface IsinEntry {
+  id: string;
+  isin: string;
+  name: string;
+  assetType: string;
+  geography: { name: string; weight: number }[];
+  sectors: { name: string; weight: number }[];
+  assetClassPro: { name: string; weight: number }[];
+}
+
 export interface PortfolioState {
   assets: Asset[];
   roboAdvisors: RoboAdvisor[];
   cashBalance: number;
   apiKey: string;
   historicalData: { date: string; value: number }[];
+  isinLibrary: IsinEntry[];
 }

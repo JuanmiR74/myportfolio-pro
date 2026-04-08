@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification, RoboSubFund } from '@/types/portfolio';
+import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification, RoboSubFund, IsinEntry } from '@/types/portfolio';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ const EMPTY_STATE: PortfolioState = {
   cashBalance: 0,
   apiKey: '',
   historicalData: [],
+  isinLibrary: [],
 };
 
 function emptyThreeDim(): ThreeDimensionClassification {
@@ -47,6 +48,7 @@ export function usePortfolio() {
             cashBalance: parsed.cashBalance ?? 0,
             apiKey: parsed.apiKey || '',
             historicalData: parsed.historicalData || [],
+            isinLibrary: parsed.isinLibrary || [],
           });
         }
       } catch (err: any) {
@@ -140,6 +142,44 @@ export function usePortfolio() {
   const setCashBalance = useCallback((cashBalance: number) => {
     if (!user) return;
     mutate(prev => ({ ...prev, cashBalance }));
+  }, [user, mutate]);
+
+  const getByIsin = useCallback((isin: string): IsinEntry | undefined => {
+    return state.isinLibrary.find(e => e.isin === isin);
+  }, [state.isinLibrary]);
+
+  const upsertIsin = useCallback((entry: Omit<IsinEntry, 'id'> & { id?: string }) => {
+    if (!user) return;
+    mutate(prev => {
+      const existing = prev.isinLibrary.find(e => e.isin === entry.isin);
+      if (existing) {
+        return {
+          ...prev,
+          isinLibrary: prev.isinLibrary.map(e =>
+            e.isin === entry.isin ? { ...e, ...entry, id: e.id } : e
+          ),
+        };
+      }
+      const newEntry: IsinEntry = { ...entry, id: entry.id || crypto.randomUUID() };
+      return { ...prev, isinLibrary: [...prev.isinLibrary, newEntry] };
+    });
+  }, [user, mutate]);
+
+  const updateIsinClassification = useCallback((isin: string, threeDim: ThreeDimensionClassification) => {
+    if (!user) return;
+    mutate(prev => ({
+      ...prev,
+      isinLibrary: prev.isinLibrary.map(e =>
+        e.isin === isin
+          ? { ...e, geography: threeDim.geography, sectors: threeDim.sectors, assetClassPro: threeDim.assetClassPro }
+          : e
+      ),
+    }));
+  }, [user, mutate]);
+
+  const deleteIsin = useCallback((id: string) => {
+    if (!user) return;
+    mutate(prev => ({ ...prev, isinLibrary: prev.isinLibrary.filter(e => e.id !== id) }));
   }, [user, mutate]);
 
   const updatePrices = useCallback((prices: Record<string, number>) => {
@@ -291,5 +331,9 @@ export function usePortfolio() {
     setApiKey,
     setCashBalance,
     updatePrices,
+    getByIsin,
+    upsertIsin,
+    updateIsinClassification,
+    deleteIsin,
   };
 }
