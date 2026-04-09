@@ -107,49 +107,7 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="robos" className="space-y-4">
-            <RoboImporter
-              existingMovements={p.roboAdvisors.find(r => r.name === 'MyInvestor - Cartera Metal')?.movements}
-              existingAssets={p.assets}
-              onConfirmImport={(data) => {
-                const existing = p.roboAdvisors.find(r => r.name === data.name);
-                if (existing) {
-                  p.updateRoboAdvisor(existing.id, {
-                    totalValue: data.totalValue,
-                    investedValue: data.investedValue,
-                    lastUpdated: new Date().toISOString().split('T')[0],
-                    allocations: data.allocations as any,
-                    sectorAllocations: data.sectorAllocations as any,
-                    movements: data.movements,
-                  });
-                } else {
-                  p.addRoboAdvisor({
-                    name: data.name,
-                    entity: '',
-                    totalValue: data.totalValue,
-                    investedValue: data.investedValue,
-                    lastUpdated: new Date().toISOString().split('T')[0],
-                    allocations: data.allocations as any,
-                    sectorAllocations: data.sectorAllocations as any,
-                    movements: data.movements,
-                  });
-                }
-              }}
-              onConfirmOpenbankImport={(updatedAssets) => {
-                updatedAssets.forEach(asset => {
-                  const existing = p.assets.find(a => a.ticker === asset.ticker);
-                  if (existing) {
-                    p.updateAsset(existing.id, {
-                      shares: asset.shares,
-                      currentPrice: asset.currentPrice,
-                      buyPrice: asset.buyPrice,
-                      classification: asset.classification,
-                    });
-                  } else {
-                    p.addAsset(asset);
-                  }
-                });
-              }}
-            />
+            <RoboImporter />
             <RoboAdvisors robos={p.roboAdvisors} onAdd={p.addRoboAdvisor} onUpdate={p.updateRoboAdvisor} onRemove={p.removeRoboAdvisor} />
           </TabsContent>
 

@@ -1,0 +1,22 @@
+"Actúa como desarrollador Senior. Necesito refactorizar la lógica de importación de movimientos en RoboImporter.tsx para integrarla totalmente con nuestro modelo de tabla única (JSONB) y la Librería Global de ISINs.
+Requerimientos de flujo y UI:
+1. Conciliación de Entidades (Mapping):
+• Al cargar un fichero de movimientos, antes de procesar, la App debe mostrar un selector: '¿A qué Robo-Advisor pertenecen estos datos?'.
+• Opciones del selector: Lista de Robo-Advisors existentes (desde p.roboAdvisors) + una opción 'Crear nuevo Robo-Advisor'.
+• Si se elige uno existente, los nuevos movimientos se fusionarán con los antiguos (evitando duplicados por fecha/importe si es posible). Si es nuevo, se pedirá un nombre.
+2. Pantalla de Pre-visualización (Resumen de Fondos):
+• Tras procesar los movimientos (viejos + nuevos), la App debe mostrar una tabla resumen de la composición resultante:
+• Columna Fondo: Nombre del fondo.
+• Columna ISIN: Identificador.
+• Columna Invertido: Suma neta de los movimientos de ese fondo (Compras - Ventas).
+• Columna Peso (%): Cálculo del porcentaje de cada fondo sobre el total invertido.
+• Esta tabla es informativa para que el usuario valide la importación antes de confirmar.
+3. Persistencia y 'Fuente de Verdad':
+• Al confirmar, el array de subFunds (ISIN y Peso) calculado en el paso anterior debe guardarse permanentemente en el objeto del Robo-Advisor dentro del PortfolioState.
+• Estos datos deben ser los que aparezcan por defecto al abrir 'Editar Distribución' en la pestaña de Robo-Advisors.
+4. Actualización de la Librería Global ISIN:
+• Cualquier ISIN detectado en el fichero que no exista en p.isinLibrary debe añadirse automáticamente a la librería con su nombre.
+• Si ya existe, se debe asegurar de que el nombre esté actualizado. Esto alimentará la pestaña 'Librería ISIN' sin intervención manual.
+5. Reglas Técnicas:
+• Usa exclusivamente el hook usePortfolio para guardar los datos (p.updateRoboAdvisor o p.addRoboAdvisor y p.upsertIsin).
+• Toda la lógica de pesos debe basarse en el valor neto invertido derivado de los movimientos."
