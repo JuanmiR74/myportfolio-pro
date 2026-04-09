@@ -111,74 +111,76 @@ export default function SubFundsEditor({ subFunds, onSave, roboName, getByIsin, 
             )}
           </div>
 
-          {funds.length > 0 && (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs w-32">ISIN</TableHead>
-                    <TableHead className="text-xs">Nombre del Fondo</TableHead>
-                    <TableHead className="text-xs text-right w-20">Peso (%)</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {funds.map(f => {
-                    const isKnown = !!(f.isin && getByIsin?.(f.isin.toUpperCase()));
-                    return (
-                      <TableRow key={f.id}>
-                        <TableCell className="py-1">
-                          <Input
-                            value={f.isin}
-                            onChange={e => updateFund(f.id, 'isin', e.target.value)}
-                            onBlur={() => handleIsinBlur(f)}
-                            className="h-7 text-xs font-mono"
-                            placeholder="IE00B4L5Y983"
-                            data-testid={`input-isin-${f.id}`}
-                          />
-                        </TableCell>
-                        <TableCell className="py-1">
-                          <Input
-                            value={f.name}
-                            onChange={e => !isKnown && updateFund(f.id, 'name', e.target.value)}
-                            readOnly={isKnown}
-                            className={`h-7 text-xs ${isKnown ? 'bg-muted/50 cursor-default text-muted-foreground' : ''}`}
-                            placeholder="Nombre del fondo"
-                            data-testid={`input-name-${f.id}`}
-                          />
-                        </TableCell>
-                        <TableCell className="py-1">
-                          <Input
-                            type="number"
-                            value={f.weightPct || ''}
-                            onChange={e => updateFund(f.id, 'weightPct', parseFloat(e.target.value) || 0)}
-                            className="h-7 text-xs text-right"
-                            step="0.1"
-                            min={0}
-                            max={100}
-                            placeholder="0"
-                            data-testid={`input-weight-${f.id}`}
-                          />
-                        </TableCell>
-                        <TableCell className="py-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeFund(f.id)}
-                            data-testid={`button-remove-${f.id}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+       // REEMPLAZAR TODA la tabla (líneas 114-180) con esta versión simplificada:
+{funds.length > 0 && (
+  <div className="overflow-x-auto">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-xs w-40">ISIN</TableHead>
+          <TableHead className="text-xs">Nombre del Fondo</TableHead>
+          <TableHead className="text-xs text-right w-24">Peso (%)</TableHead>
+          <TableHead className="w-10" />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {funds.map(f => {
+          const isKnown = !!(f.isin && getByIsin?.(f.isin.toUpperCase()));
+          return (
+            <TableRow key={f.id}>
+              <TableCell className="py-1">
+                <Input
+                  value={f.isin}
+                  onChange={e => updateFund(f.id, 'isin', e.target.value)}
+                  onBlur={() => handleIsinBlur(f)}
+                  className="h-7 text-xs font-mono"
+                  placeholder="IE00B4L5Y983"
+                  data-testid={`input-isin-${f.id}`}
+                />
+              </TableCell>
+              <TableCell className="py-1">
+                <span className={`text-xs ${isKnown ? 'font-medium' : 'text-muted-foreground'}`}>
+                  {f.name || '—'}
+                </span>
+              </TableCell>
+              <TableCell className="py-1">
+                <Input
+                  type="number"
+                  value={f.weightPct || ''}
+                  onChange={e => updateFund(f.id, 'weightPct', parseFloat(e.target.value) || 0)}
+                  className="h-7 text-xs text-right"
+                  step="0.1"
+                  min={0}
+                  max={100}
+                  placeholder="0"
+                  data-testid={`input-weight-${f.id}`}
+                />
+              </TableCell>
+              <TableCell className="py-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeFund(f.id)}
+                  data-testid={`button-remove-${f.id}`}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  </div>
+)}
 
+// NOTA: He removido:
+// ❌ Campo "Nombre del Fondo" editable (ahora solo lectura, recuperado de librería)
+// ❌ Selector de Asset Classes
+// ❌ Selector de Geografía/Sectores
+// ✅ Solo ISIN, Nombre (readonly), Peso (editable) 
+          
           {funds.length > 0 && (
             <div className="flex items-center justify-between pt-2 border-t border-border/30">
               <span
