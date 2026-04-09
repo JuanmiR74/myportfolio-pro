@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 type ImportEntity = 'myinvestor' | 'openbank' | 'other';
 const NEW_ROBO = '__new__';
 
-const [editableISINs, setEditableISINs] = useState<Map<string, string>>(new Map());
+
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
@@ -30,7 +30,7 @@ function fmt(n: number) {
 export default function RoboImporter() {
   const p = usePortfolio();
   const fileRef = useRef<HTMLInputElement>(null);
-
+const [editableISINs, setEditableISINs] = useState<Map<string, string>>(new Map());
   const [selectedEntity, setSelectedEntity] = useState<ImportEntity | null>(null);
   const [selectedRoboId, setSelectedRoboId] = useState<string>('');
   const [newRoboName, setNewRoboName] = useState('');
@@ -51,7 +51,18 @@ export default function RoboImporter() {
       (selectedRoboId && selectedRoboId !== NEW_ROBO) ||
       (selectedRoboId === NEW_ROBO && newRoboName.trim().length > 0)
     ));
-
+const validateISINs = (): boolean => {
+  const allFunds = summary?.fundBreakdown || [];
+  const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
+  if (missingISIN) {
+    const editedISIN = editableISINs.get(missingISIN.name)?.trim();
+    if (!editedISIN) {
+      toast.error(`Fondo "${missingISIN.name}" necesita un ISIN asignado`);
+      return false;
+    }
+  }
+  return true;
+};
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -82,68 +93,74 @@ export default function RoboImporter() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const handleConfirmMyInvestor = () => {
-    if (!summary) return;
+ const handleConfirmMyInvestor = () => {
+  if (!summary) return;
+  
+  // 1. Validar ISINs editados
+  if (!validateISINs()) return;
 
-    const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
-    const newMovements = toRoboMovements(summary.movements);
-    const existingMovements = selectedRoboId !== NEW_ROBO
-      ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements ?? []
-      : [];
-    const allMovements = [...existingMovements, ...newMovements];
+  const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
+  const newMovements = toRoboMovements(summary.movements);
+  const existingMovements = selectedRoboId !== NEW_ROBO
+    ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements ?? []
+    : [];
+  const allMovements = [...existingMovements, ...newMovements];
 
-    const subFunds: RoboSubFund[] = summary.fundBreakdown
-      .filter(f => f.totalInvested > 0 && f.isin)
-      .map(f => ({
+  // 2. Usar ISINs editados si existen
+  const subFunds: RoboSubFund[] = summary.fundBreakdown
+    .filter(f => f.totalInvested > 0)
+    .map(f => {
+      const isin = editableISINs.get(f.name)?.trim() || f.isin;
+      return {
         id: crypto.randomUUID(),
-        isin: f.isin,
+        isin: isin || '',
         name: f.name,
         weightPct: f.weight,
-      }));
+      };
+    })
+    .filter(f => f.isin); // Solo guardar los que finalmente tengan ISIN
 
-    const today = new Date().toISOString().split('T')[0];
-    const roboData = {
-      totalValue: totalFundValue + summary.currentCash,
-      investedValue: summary.investedValue,
-      lastUpdated: today,
-      movements: allMovements,
-      subFunds,
-    };
-
-    if (selectedRoboId === NEW_ROBO) {
-      p.addRoboAdvisor({
-        name: newRoboName.trim(),
-        entity: 'MyInvestor',
-        ...roboData,
-      });
-    } else {
-      p.updateRoboAdvisor(selectedRoboId, roboData);
-    }
-
-    // Upsert all detected ISINs into the global library
-    summary.fundBreakdown.forEach(f => {
-      if (!f.isin) return;
-      const existing = p.getByIsin(f.isin);
-      p.upsertIsin({
-        isin: f.isin,
-        name: f.name,
-        assetType: existing?.assetType ?? 'Fondos MyInvestor',
-        geography: existing?.geography ?? [],
-        sectors: existing?.sectors ?? [],
-        assetClassPro: existing?.assetClassPro ?? [],
-      });
-    });
-
-    setPreviewOpen(false);
-    setSummary(null);
-    setSelectedEntity(null);
-    setSelectedRoboId('');
-    setNewRoboName('');
-    toast.success(
-      `Importación completada: ${summary.newMovementsCount} nuevos movimientos · ` +
-      `${subFunds.length} fondos guardados como desglose`
-    );
+  const today = new Date().toISOString().split('T')[0];
+  const roboData = {
+    totalValue: totalFundValue + summary.currentCash,
+    investedValue: summary.investedValue,
+    lastUpdated: today,
+    movements: allMovements,
+    subFunds,
   };
+
+  if (selectedRoboId === NEW_ROBO) {
+    p.addRoboAdvisor({
+      name: newRoboName.trim(),
+      entity: 'MyInvestor',
+      ...roboData,
+    });
+  } else {
+    p.updateRoboAdvisor(selectedRoboId, roboData);
+  }
+
+  // 3. Upsert ISINs (incluyendo los nuevos manuales)
+  subFunds.forEach(sf => {
+    if (!sf.isin) return;
+    const existing = p.getByIsin(sf.isin);
+    p.upsertIsin({
+      isin: sf.isin,
+      name: sf.name,
+      assetType: existing?.assetType ?? 'Fondos MyInvestor',
+      geography: existing?.geography ?? [],
+      sectors: existing?.sectors ?? [],
+      assetClassPro: existing?.assetClassPro ?? [],
+    });
+  });
+
+  setPreviewOpen(false);
+  setSummary(null);
+  setEditableISINs(new Map()); // Limpiar estado al terminar
+  setSelectedEntity(null);
+  setSelectedRoboId('');
+  setNewRoboName('');
+  toast.success(`Importación completada: ${summary.newMovementsCount} nuevos movimientos`);
+};
 
   const handleConfirmOpenbank = () => {
     if (!openbankSummary) return;
@@ -349,23 +366,23 @@ export default function RoboImporter() {
     {summary.fundBreakdown.map(f => (
       <TableRow key={f.name}>
         <TableCell className="text-xs font-medium py-2">{f.name}</TableCell>
-        <TableCell className="text-xs py-2">
-          {f.isin && f.isin.trim() ? (
-            <span className="font-mono text-muted-foreground">{f.isin}</span>
-          ) : (
-            <Input
-              value={editableISINs.get(f.name) || ''}
-              onChange={(e) => {
-                const newISINs = new Map(editableISINs);
-                newISINs.set(f.name, e.target.value.toUpperCase());
-                setEditableISINs(newISINs);
-              }}
-              placeholder="IE00B4L5Y983"
-              className="h-7 text-xs font-mono"
-              data-testid={`input-isin-${f.name}`}
-            />
-          )}
-        </TableCell>
+       <TableCell className="text-xs py-2">
+  {f.isin && f.isin.trim() ? (
+    <span className="font-mono text-muted-foreground">{f.isin}</span>
+  ) : (
+    <Input
+      value={editableISINs.get(f.name) || ''}
+      onChange={(e) => {
+        const newISINs = new Map(editableISINs);
+        newISINs.set(f.name, e.target.value.toUpperCase());
+        setEditableISINs(newISINs);
+      }}
+      placeholder="Introduce ISIN..."
+      className="h-7 text-xs font-mono"
+      data-testid={`input-isin-${f.name}`}
+    />
+  )}
+</TableCell>
         <TableCell className="text-right font-mono text-xs py-2">{fmt(f.totalInvested)}</TableCell>
         <TableCell className={`text-right font-mono text-xs font-semibold py-2 ${f.weight >= 20 ? 'text-primary' : ''}`}>
           {f.weight.toFixed(1)}%
