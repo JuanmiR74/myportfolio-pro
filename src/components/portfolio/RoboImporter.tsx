@@ -391,6 +391,7 @@ const validateISINs = (): boolean => {
     ))}
   </TableBody>
 </Table>
+                    
 const validateISINs = (): boolean => {
   // 1. Si no hay resumen, no hay nada que validar
   if (!summary) return false;
