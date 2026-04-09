@@ -391,21 +391,31 @@ const validateISINs = (): boolean => {
     ))}
   </TableBody>
 </Table>
-  const allFunds = summary?.fundBreakdown || [];
-                    const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
-// En handleConfirmMyInvestor(), ANTES de guardar, valida ISINs:
+const validateISINs = (): boolean => {
+  // 1. Si no hay resumen, no hay nada que validar
+  if (!summary) return false;
 
+  // 2. Extraemos los fondos y buscamos si falta algún ISIN
+  const allFunds = summary.fundBreakdown;
+  const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
 
-  
+  // 3. Si falta un ISIN, miramos si el usuario lo ha escrito en el input manual (editableISINs)
   if (missingISIN) {
     const editedISIN = editableISINs.get(missingISIN.name)?.trim();
     if (!editedISIN) {
       toast.error(`Fondo "${missingISIN.name}" necesita un ISIN asignado`);
-      return false;
+      return false; // Detiene la importación
     }
   }
-  const validateISINs = (): boolean => {return true;
+
+  return true; // Todo correcto, podemos seguir
 };
+
+                    
+  
+
+
+  
 
 // Modifica handleConfirmMyInvestor así:.
 const handleConfirmMyInvestor = () => {
