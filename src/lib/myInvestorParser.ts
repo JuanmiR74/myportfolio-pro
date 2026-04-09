@@ -229,6 +229,79 @@ export function parseMyInvestorXLSX(
   };
 }
 
+
+// ✅ NUEVA FUNCIÓN auxiliar (añade después de parseMyInvestorXLSX):
+export function recalculateWeightsWithExisting(
+  newFundBreakdown: ImportSummary['fundBreakdown'],
+  existingMovements: RoboMovement[] | undefined
+): ImportSummary['fundBreakdown'] {
+  if (!existingMovements || existingMovements.length === 0) {
+    return newFundBreakdown; // Sin cambios si no hay movimientos previos
+  }
+
+  // Calcular totales PREVIOS por fondo
+  const existingTotals: Record<string, number> = {};
+  existingMovements.forEach(m => {
+    if (m.isin) {
+      existingTotals[m.isin] = (existingTotals[m.isin] || 0) + m.amount;
+    }
+  });
+
+  // Fusionar: ISIN nuevos con existentes
+  const mergedTotals = { ...existingTotals };
+  
+  newFundBreakdown.forEach(fund => {
+    if (fund.isin) {
+      mergedTotals[fund.isin] = (mergedTotals[fund.isin] || 0) + fund.totalInvested;
+    }
+  });
+
+  // Recalcular pesos sobre el TOTAL ACUMULADO
+  const totalAccumulated = Object.values(mergedTotals).reduce((s, v) => s + v, 0);
+  
+  return Object.entries(mergedTotals)
+    .filter(([, amount]) => amount > 0)
+    .map(([isin, amount]) => {
+      // Buscar el nombre original del fondo
+      const fundInfo = newFundBreakdown.find(f => f.isin === isin);
+      return {
+        name: fundInfo?.name || isin,
+        isin,
+        totalInvested: amount,
+        weight: totalAccumulated > 0 ? (amount / totalAccumulated) * 100 : 0,
+      };
+    })
+    .sort((a, b) => b.weight - a.weight);
+}
+
+// ✅ MODIFICAR parseMyInvestorXLSX para recibir parámetro adicional:
+// (línea 106-109) - ya lo tiene, pero ahora llámalo desde RoboImporter así:
+
+// En RoboImporter.tsx handleFileUpload (línea 63-69):
+if (selectedEntity === 'myinvestor') {
+  const existingMovements = selectedRoboId !== NEW_ROBO
+    ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements
+    : undefined;
+  let result = parseMyInvestorXLSX(rows, existingMovements);
+  
+  // ✅ RECALCULAR pesos con movimientos acumulados
+  if (existingMovements && existingMovements.length > 0) {
+    const recalculatedFunds = recalculateWeightsWithExisting(
+      result.fundBreakdown,
+      existingMovements
+    );
+    result = {
+      ...result,
+      fundBreakdown: recalculatedFunds,
+    };
+  }
+  
+  setSummary(result);
+  setOpenbankSummary(null);
+}
+
+
+
 // Convert parsed movements to RoboMovement[]
 export function toRoboMovements(parsed: ParsedMovement[]): RoboMovement[] {
   return parsed.map(m => ({
