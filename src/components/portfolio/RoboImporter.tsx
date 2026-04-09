@@ -377,7 +377,7 @@ export default function RoboImporter() {
 
 // En handleConfirmMyInvestor(), ANTES de guardar, valida ISINs:
 const validateISINs = (): boolean => {
-  const allFunds = summary.fundBreakdown;
+  const allFunds = summary?.fundBreakdown || [];
   const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
   if (missingISIN) {
     const editedISIN = editableISINs.get(missingISIN.name)?.trim();
