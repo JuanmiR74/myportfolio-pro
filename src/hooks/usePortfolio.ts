@@ -110,11 +110,20 @@ export function usePortfolio() {
     updateAsset(id, { threeDim });
   }, [updateAsset]);
 
-  const addRoboAdvisor = useCallback((robo: Omit<RoboAdvisor, 'id'>) => {
-    if (!user) return;
-    const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
-    mutate(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
-  }, [user, mutate]);
+// Línea 113-117, REEMPLAZAR con:
+const addRoboAdvisor = useCallback((robo: Omit<RoboAdvisor, 'id'>) => {
+  if (!user) return;
+  const newRobo: RoboAdvisor = { ...robo, id: crypto.randomUUID(), threeDim: robo.threeDim || emptyThreeDim() };
+  
+  // ✅ Actualizar estado LOCAL primero (optimistic update)
+  setState(prev => ({
+    ...prev,
+    roboAdvisors: [...prev.roboAdvisors, newRobo]
+  }));
+  
+  // Luego guardar en Supabase (en background)
+  mutate(prev => ({ ...prev, roboAdvisors: [...prev.roboAdvisors, newRobo] }));
+}, [user, mutate]);
 
   const updateRoboAdvisor = useCallback((id: string, updates: Partial<RoboAdvisor>) => {
     if (!user) return;
