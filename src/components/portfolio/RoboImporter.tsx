@@ -178,7 +178,7 @@ const validateISINs = (): boolean => {
         p.addAsset(asset);
       }
     });
-    // Upsert ISINs from Openbank
+    // Upsert ISINs from Openbank.
     openbankSummary.funds.forEach(f => {
       if (!f.isin) return;
       const existing = p.getByIsin(f.isin);
