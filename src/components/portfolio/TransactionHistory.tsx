@@ -1,199 +1,223 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+// =============================================================================
+// TransactionHistory.tsx — Historial de movimientos de un Asset
+//
+// MIGRACIÓN: Ya NO usa useTransactions ni la tabla `transactions`.
+// Lee y escribe directamente en asset.movements dentro del JSONB
+// a través de usePortfolio (addMovement / removeMovement).
+// =============================================================================
+
+import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useTransactions, Transaction } from '@/hooks/useTransactions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-
-interface TransactionHistoryProps {
-  assetId?: string;
-  roboAdvisorId?: string;
-  onInvestedChanged?: (amount: number) => void;
-}
+import { usePortfolio, calcInvestedFromMovements } from '@/hooks/usePortfolio';
+import type { Asset, AssetMovement, AssetMovementType } from '@/types/portfolio';
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
-export function TransactionHistory({ assetId, roboAdvisorId, onInvestedChanged }: TransactionHistoryProps) {
-  const { fetchTransactions, calculateInvested, addTransaction, deleteTransaction } = useTransactions();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [invested, setInvested] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], description: '' });
+const MOVEMENT_LABELS: Record<AssetMovementType, string> = {
+  aportacion: 'Aportación',
+  retirada:   'Retirada',
+  dividendo:  'Dividendo',
+  comision:   'Comisión',
+  otro:       'Otro',
+};
 
-  const loadTransactions = async () => {
-    const txs = await fetchTransactions(assetId, roboAdvisorId);
-    setTransactions(txs);
-    const inv = await calculateInvested(assetId, roboAdvisorId);
-    setInvested(inv);
-    onInvestedChanged?.(inv);
-  };
+interface Props {
+  /** Asset completo (ya disponible en el estado del hook) */
+  asset: Asset;
+  /** Callback opcional para notificar al padre del nuevo total invertido */
+  onInvestedChanged?: (amount: number) => void;
+}
 
-  useEffect(() => {
-    loadTransactions();
-  }, [assetId, roboAdvisorId]);
+export function TransactionHistory({ asset, onInvestedChanged }: Props) {
+  const { addMovement, removeMovement } = usePortfolio();
+  const [showForm, setShowForm] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [form, setForm] = useState({
+    date:        new Date().toISOString().split('T')[0],
+    type:        'aportacion' as AssetMovementType,
+    amount:      '',
+    description: '',
+  });
 
-  const handleAddTransaction = async () => {
-    if (!form.amount || !form.date) {
-      toast.error('Completa todos los campos requeridos');
+  const movements = asset.movements || [];
+  const totalInvested = calcInvestedFromMovements(movements);
+
+  const handleAdd = async () => {
+    const amount = parseFloat(form.amount);
+    if (!form.date || isNaN(amount) || amount <= 0) {
+      toast.error('Introduce una fecha y un importe válido (> 0)');
       return;
     }
 
-    if (!assetId && !roboAdvisorId) {
-      toast.error('Se requiere un activo o robo-advisor');
-      return;
-    }
-
-    setLoading(true);
+    setSaving(true);
     try {
-      await addTransaction({
-        asset_id: assetId,
-        robo_advisor_id: roboAdvisorId,
-        amount: parseFloat(form.amount),
-        date: form.date,
+      addMovement(asset.id, {
+        date:        form.date,
+        type:        form.type,
+        amount,
         description: form.description || undefined,
       });
 
-      toast.success('Transacción agregada');
-      setForm({ amount: '', date: new Date().toISOString().split('T')[0], description: '' });
-      setOpen(false);
-      await loadTransactions();
-    } catch (error) {
-      toast.error('Error al agregar transacción');
-      console.error(error);
+      // Notificar al padre con el nuevo total
+      const newMovements: AssetMovement[] = [
+        ...movements,
+        { id: 'tmp', date: form.date, type: form.type, amount, description: form.description || undefined },
+      ];
+      onInvestedChanged?.(calcInvestedFromMovements(newMovements));
+
+      setForm({ date: new Date().toISOString().split('T')[0], type: 'aportacion', amount: '', description: '' });
+      setShowForm(false);
+      toast.success('Movimiento añadido');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleDeleteTransaction = async (id: string) => {
-    if (!confirm('¿Eliminar esta transacción?')) return;
-
-    try {
-      await deleteTransaction(id);
-      toast.success('Transacción eliminada');
-      await loadTransactions();
-    } catch (error) {
-      toast.error('Error al eliminar transacción');
-      console.error(error);
-    }
+  const handleRemove = (movementId: string) => {
+    removeMovement(asset.id, movementId);
+    const remaining = movements.filter(m => m.id !== movementId);
+    onInvestedChanged?.(calcInvestedFromMovements(remaining));
+    toast.success('Movimiento eliminado');
   };
 
   return (
     <div className="space-y-4">
+      {/* Total y botón añadir */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Capital invertido (de transacciones)</p>
-          <p className="text-2xl font-bold font-mono">{fmt(invested)}</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Capital invertido</p>
+          <p className="text-xl font-mono font-bold">{fmt(totalInvested)}</p>
         </div>
-        <Button onClick={() => setOpen(true)} size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Agregar Movimiento
+        <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Añadir movimiento
         </Button>
       </div>
 
-      <div className="border border-border/50 rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="text-xs">Fecha</TableHead>
-              <TableHead className="text-right text-xs">Importe</TableHead>
-              <TableHead className="text-xs">Descripción</TableHead>
-              <TableHead className="w-8"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">
-                  Sin movimientos registrados
-                </TableCell>
-              </TableRow>
-            ) : (
-              transactions.map(tx => (
-                <TableRow key={tx.id} className="hover:bg-muted/30">
-                  <TableCell className="text-xs font-mono">{tx.date}</TableCell>
-                  <TableCell className={`text-right text-sm font-mono font-medium ${tx.amount > 0 ? 'text-profit' : 'text-loss'}`}>
-                    {tx.amount > 0 ? '+' : ''}{fmt(tx.amount)}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{tx.description || '-'}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteTransaction(tx.id)}
-                      className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Lista de movimientos */}
+      {movements.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-6">
+          Sin movimientos registrados. Añade una aportación para empezar.
+        </p>
+      ) : (
+        <div className="rounded-md border border-border/50 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Fecha</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Tipo</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground uppercase">Importe</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Descripción</th>
+                <th className="px-3 py-2 w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {[...movements]
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .map(m => {
+                  const isIn  = m.type === 'aportacion' || m.type === 'dividendo';
+                  const isOut = m.type === 'retirada'   || m.type === 'comision';
+                  return (
+                    <tr key={m.id} className="border-t border-border/30 hover:bg-muted/20">
+                      <td className="px-3 py-2 font-mono text-xs">{m.date}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          isIn  ? 'bg-green-500/10 text-green-500' :
+                          isOut ? 'bg-red-500/10   text-red-500'   :
+                                  'bg-muted         text-muted-foreground'
+                        }`}>
+                          {MOVEMENT_LABELS[m.type]}
+                        </span>
+                      </td>
+                      <td className={`px-3 py-2 text-right font-mono font-semibold ${
+                        isIn ? 'text-green-500' : isOut ? 'text-red-500' : ''
+                      }`}>
+                        {isOut ? '-' : '+'}{fmt(m.amount)}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {m.description || '—'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Button
+                          variant="ghost" size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemove(m.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+      {/* Dialog: añadir movimiento */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Agregar Movimiento
-            </DialogTitle>
+            <DialogTitle>Añadir movimiento</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Importe (EUR)</Label>
+          <div className="grid gap-3 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Fecha</Label>
+                <Input
+                  type="date"
+                  value={form.date}
+                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tipo</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={v => setForm(f => ({ ...f, type: v as AssetMovementType }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(MOVEMENT_LABELS) as [AssetMovementType, string][]).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Importe (€)</Label>
               <Input
-                id="amount"
                 type="number"
-                placeholder="1000.50"
+                min="0"
                 step="0.01"
+                placeholder="5000.00"
                 value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">Positivo para aportación, negativo para retirada</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="date">Fecha</Label>
-              <Input
-                id="date"
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                disabled={loading}
+                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descripción (opcional)</Label>
+            <div>
+              <Label>Descripción <span className="text-muted-foreground">(opcional)</span></Label>
               <Input
-                id="description"
-                placeholder="Aportación inicial, retirada parcial, etc."
+                placeholder="Aportación mensual..."
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                disabled={loading}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               />
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button onClick={handleAdd} disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar'}
+              </Button>
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAddTransaction} disabled={loading}>
-              {loading ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
