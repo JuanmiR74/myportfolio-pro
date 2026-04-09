@@ -1,0 +1,46 @@
+"Actúa como desarrollador Senior. Tenemos errores críticos en el flujo de importación y persistencia de Robo-Advisors que debemos corregir inmediatamente siguiendo estas instrucciones:
+
+1. Edición de ISINs en la Previsualización:
+
+En la tabla de previsualización del RoboImporter (Paso 4), la columna ISIN debe ser un input editable si el campo viene vacío o si el usuario quiere corregirlo.
+
+Validación: No se debe permitir 'Confirmar' la importación si hay fondos en la lista que aún no tienen un ISIN asignado.
+
+Al confirmar, estos ISINs introducidos manualmente deben enviarse a p.upsertIsin para actualizar la librería global.
+
+2. Recálculo Acumulativo de Pesos (Crucial):
+
+La lógica de cálculo de la composición (pesos %) no debe hacerse solo con los movimientos del archivo.
+
+Nueva Lógica: Al importar movimientos para un Robo-Advisor existente, debes:
+
+Recuperar los movements ya guardados en p.roboAdvisors.
+
+Fusionarlos con los nuevos movimientos del archivo (eliminando duplicados).
+
+Calcular el Neto Invertido Total por cada fondo usando la lista completa fusionada.
+
+Derivar los nuevos Pesos % sobre el total acumulado.
+
+El resultado final de este cálculo debe sobreescribir el array subFunds del Robo-Advisor.
+
+3. Error de Persistencia de Nuevos Robos:
+
+Revisa por qué p.addRoboAdvisor no está refrescando la lista global. Asegúrate de que tras el upsert en Supabase, el estado local se actualice correctamente para que el nuevo Robo-Advisor aparezca inmediatamente en la UI sin necesidad de recargar la página.
+
+4. Limpieza del componente 'Editar Distribución' (SubFundsEditor):
+
+Refactoriza el modal de edición de distribución para que sea estrictamente una lista de ISIN + Peso.
+
+Elimina cualquier campo sobrante de clasificación manual (geografía, sectores, assetClass).
+
+Esta vista debe ser el reflejo exacto de lo que se calculó en la importación, permitiendo ajustes manuales rápidos solo en los pesos o ISINs.
+
+Resultado esperado: Un flujo donde la importación 'aprende' de los movimientos antiguos, permite corregir ISINs sobre la marcha y deja la cartera lista para que el X-Ray haga su trabajo basándose únicamente en esa lista de fondos."
+
+¿Qué corregimos exactamente con esto?
+El problema del ISIN invisible: A veces los PDFs de los bancos no traen el ISIN de forma clara. Al dejarte editarlo en la tabla de resumen, tú "le das la pista" que la App necesita para fichar ese fondo en la librería.
+
+La "Cartera Real": Si tenías 10.000€ y subes un archivo con una aportación de 1.000€, la App ya no dirá que tu cartera es 100% de esos 1.000€. Al fusionar los movimientos, entenderá que ahora tienes 11.000€ y recalculará los pesos de forma honesta.
+
+La visibilidad: Forzamos a la IA a que asegure que el "Guardar" de Supabase dispare un refresco en la pantalla.
