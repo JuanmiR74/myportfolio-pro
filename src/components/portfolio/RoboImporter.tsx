@@ -406,7 +406,7 @@ const validateISINs = (): boolean => {
   return true;
 };
 
-// Modifica handleConfirmMyInvestor así:
+// Modifica handleConfirmMyInvestor así:.
 const handleConfirmMyInvestor = () => {
   if (!summary) return;
   
