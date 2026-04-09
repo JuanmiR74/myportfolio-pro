@@ -394,7 +394,7 @@ const validateISINs = (): boolean => {
   const allFunds = summary?.fundBreakdown || [];
                     const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
 // En handleConfirmMyInvestor(), ANTES de guardar, valida ISINs:
-const validateISINs = (): boolean => {
+
 
   
   if (missingISIN) {
@@ -404,7 +404,7 @@ const validateISINs = (): boolean => {
       return false;
     }
   }
-  return true;
+  const validateISINs = (): boolean => {return true;
 };
 
 // Modifica handleConfirmMyInvestor así:.
