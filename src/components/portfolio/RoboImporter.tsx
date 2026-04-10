@@ -92,11 +92,10 @@ const validateISINs = (): boolean => {
     setLoading(false);
     if (fileRef.current) fileRef.current.value = '';
   };
-
 const handleConfirmMyInvestor = () => {
     if (!summary) return;
     
-    // 1. Validar ISINs editados
+    // 1. Validar ISINs
     if (!validateISINs()) return;
 
     const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
@@ -106,7 +105,6 @@ const handleConfirmMyInvestor = () => {
       : [];
     const allMovements = [...existingMovements, ...newMovements];
 
-    // 2. Crear sub-fondos usando ISINs editados si existen
     const subFunds: RoboSubFund[] = summary.fundBreakdown
       .filter(f => f.totalInvested > 0)
       .map(f => {
@@ -139,7 +137,6 @@ const handleConfirmMyInvestor = () => {
       p.updateRoboAdvisor(selectedRoboId, roboData);
     }
 
-    // 3. Guardar ISINs en la librería global
     subFunds.forEach(sf => {
       if (!sf.isin) return;
       const existing = p.getByIsin(sf.isin);
@@ -159,7 +156,7 @@ const handleConfirmMyInvestor = () => {
     setSelectedEntity(null);
     setSelectedRoboId('');
     setNewRoboName('');
-    toast.success(`Importación completada: ${summary.newMovementsCount} nuevos movimientos`);
+    toast.success(`Importación completada`);
   };
 
   const handleConfirmOpenbank = () => {
@@ -194,7 +191,7 @@ const handleConfirmMyInvestor = () => {
     setPreviewOpen(false);
     setOpenbankSummary(null);
     setSelectedEntity(null);
-    toast.success(`Openbank importado: ${openbankSummary.newFundsCount} nuevos`);
+    toast.success(`Openbank importado`);
   };
 
   const handleCancel = () => {
@@ -206,6 +203,8 @@ const handleConfirmMyInvestor = () => {
   const roboName = selectedRoboId === NEW_ROBO
     ? newRoboName.trim() || 'Nuevo Robo-Advisor'
     : p.roboAdvisors.find(r => r.id === selectedRoboId)?.name ?? '';
+
+  // AQUÍ TERMINA LA LÓGICA Y EMPIEZA EL RENDER
 
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
