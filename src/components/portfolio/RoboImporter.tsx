@@ -407,32 +407,8 @@ const validateISINs = (): boolean => {
       </TableRow>
     ))}
   </TableBody>
-</Table>
-                    
-
-
-  if (selectedRoboId === NEW_ROBO) {
-    p.addRoboAdvisor({
-      name: newRoboName.trim(),
-      entity: 'MyInvestor',
-      ...roboData,
-    })
-  } else {
-    p.updateRoboAdvisor(selectedRoboId, roboData)
-  }
-
-
-  setPreviewOpen(false);
-  setSummary(null);
-  setEditableISINs(new Map()); // Limpiar
-  setSelectedEntity(null);
-  setSelectedRoboId('');
-  setNewRoboName('');
-  toast.success(
-    `Importación completada: ${summary.newMovementsCount} nuevos movimientos · ` +
-    `${subFunds.length} fondos con ISIN guardados`
-  );
-};
+                    </Table>
+                  </div>
                 </div>
 
                 {/* ISIN library note */}
@@ -512,7 +488,7 @@ const validateISINs = (): boolean => {
       </CardContent>
     </Card>
   );
-}//
+}
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: 'primary' | 'loss' }) {
   return (
