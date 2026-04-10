@@ -400,7 +400,7 @@ const validateISINs = (): boolean => {
       name: newRoboName.trim(),
       entity: 'MyInvestor',
       ...roboData,
-    });
+    })
   } else {
     p.updateRoboAdvisor(selectedRoboId, roboData);
   }
