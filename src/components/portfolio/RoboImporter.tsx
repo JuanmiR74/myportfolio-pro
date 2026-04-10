@@ -120,7 +120,23 @@ const validateISINs = (): boolean => {
       };
     })
     .filter(f => f.isin); // Solo guardar los que finalmente tengan ISIN
+  // ✅ Upsert ALL ISINs (incluyendo editados)
+  subFunds.forEach(sf => {
+    if (!sf.isin) return;
+    const existing = p.getByIsin(sf.isin);
+    p.upsertIsin({
+      isin: sf.isin,
+      name: sf.name,
+      assetType: existing?.assetType ?? 'Fondos MyInvestor',
+      geography: existing?.geography ?? [],
+      sectors: existing?.sectors ?? [],
+      assetClassPro: existing?.assetClassPro ?? [],
+    });
+  });
 
+
+
+   
   const today = new Date().toISOString().split('T')[0];
   const roboData = {
     totalValue: totalFundValue + summary.currentCash,
@@ -405,19 +421,6 @@ const validateISINs = (): boolean => {
     p.updateRoboAdvisor(selectedRoboId, roboData)
   }
 
-  // ✅ Upsert ALL ISINs (incluyendo editados)
-  subFunds.forEach(sf => {
-    if (!sf.isin) return;
-    const existing = p.getByIsin(sf.isin);
-    p.upsertIsin({
-      isin: sf.isin,
-      name: sf.name,
-      assetType: existing?.assetType ?? 'Fondos MyInvestor',
-      geography: existing?.geography ?? [],
-      sectors: existing?.sectors ?? [],
-      assetClassPro: existing?.assetClassPro ?? [],
-    });
-  });
 
   setPreviewOpen(false);
   setSummary(null);
