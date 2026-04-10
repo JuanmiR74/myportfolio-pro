@@ -93,93 +93,75 @@ const validateISINs = (): boolean => {
     if (fileRef.current) fileRef.current.value = '';
   };
 
- const handleConfirmMyInvestor = () => {
-  if (!summary) return;
+const handleConfirmMyInvestor = () => {
+    if (!summary) return;
+
+    // 1. Validar ISINs editados
+    if (!validateISINs()) return;
+
+    const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
+    const newMovements = toRoboMovements(summary.movements);
+    const existingMovements = selectedRoboId !== NEW_ROBO
+      ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements ?? []
+      : [];
+    const allMovements = [...existingMovements, ...newMovements];
+
+    // 2. Usar ISINs editados si existen
+    const subFunds: RoboSubFund[] = summary.fundBreakdown
+      .filter(f => f.totalInvested > 0)
+      .map(f => {
+        const isin = editableISINs.get(f.name)?.trim() || f.isin;
+        return {
+          id: crypto.randomUUID(),
+          isin: isin || '',
+          name: f.name,
+          weightPct: f.weight,
+        };
+      })
+      .filter(f => f.isin);
+
+    const today = new Date().toISOString().split('T')[0];
+    const roboData = {
+      totalValue: totalFundValue + summary.currentCash,
+      investedValue: summary.investedValue,
+      lastUpdated: today,
+      movements: allMovements,
+      subFunds,
+    };
+
+    if (selectedRoboId === NEW_ROBO) {
+      p.addRoboAdvisor({
+        name: newRoboName.trim(),
+        entity: 'MyInvestor',
+        ...roboData,
+      });
+    } else {
+      p.updateRoboAdvisor(selectedRoboId, roboData);
+    }
+
+    // 3. Upsert ISINs en la librería global
+    subFunds.forEach(sf => {
+      if (!sf.isin) return;
+      const existing = p.getByIsin(sf.isin);
+      p.upsertIsin({
+        isin: sf.isin,
+        name: sf.name,
+        assetType: existing?.assetType ?? 'Fondos MyInvestor',
+        geography: existing?.geography ?? [],
+        sectors: existing?.sectors ?? [],
+        assetClassPro: existing?.assetClassPro ?? [],
+      });
+    });
+
+    setPreviewOpen(false);
+    setSummary(null);
+    setEditableISINs(new Map());
+    setSelectedEntity(null);
+    setSelectedRoboId('');
+    setNewRoboName('');
+    toast.success(`Importación completada: ${summary.newMovementsCount} nuevos movimientos`);
+  }; // <--- Este es el único cierre que debe haber aquí
   
-  // 1. Validar ISINs editados
-  if (!validateISINs()) return;
-
-  const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
-
-  const newMovements = toRoboMovements(summary.movements);
-  const existingMovements = selectedRoboId !== NEW_ROBO
-    ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements ?? []
-    : [];
-  const allMovements = [...existingMovements, ...newMovements];
-
-  // 2. Usar ISINs editados si existen
-  const subFunds: RoboSubFund[] = summary.fundBreakdown
-    .filter(f => f.totalInvested > 0)
-    .map(f => {
-      const isin = editableISINs.get(f.name)?.trim() || f.isin;
-      return {
-        id: crypto.randomUUID(),
-        isin: isin || '',
-        name: f.name,
-        weightPct: f.weight,
-      };
-    })
-    .filter(f => f.isin); // Solo guardar los que finalmente tengan ISIN
-   };
-  // ✅ Upsert ALL ISINs (incluyendo editados)
-  subFunds.forEach(sf => {
-    if (!sf.isin) return;
-    const existing = p.getByIsin(sf.isin);
-    p.upsertIsin({
-      isin: sf.isin,
-      name: sf.name,
-      assetType: existing?.assetType ?? 'Fondos MyInvestor',
-      geography: existing?.geography ?? [],
-      sectors: existing?.sectors ?? [],
-      assetClassPro: existing?.assetClassPro ?? [],
-    });
-  });
-
-
-
-   
-  const today = new Date().toISOString().split('T')[0];
-  const roboData = {
-    totalValue: totalFundValue + summary.currentCash,
-    investedValue: summary.investedValue,
-    lastUpdated: today,
-    movements: allMovements,
-    subFunds,
-  };
-
-  if (selectedRoboId === NEW_ROBO) {
-    p.addRoboAdvisor({
-      name: newRoboName.trim(),
-      entity: 'MyInvestor',
-      ...roboData,
-    });
-  } else {
-    p.updateRoboAdvisor(selectedRoboId, roboData);
-  }
-
-  // 3. Upsert ISINs (incluyendo los nuevos manuales)
-  subFunds.forEach(sf => {
-    if (!sf.isin) return;
-    const existing = p.getByIsin(sf.isin);
-    p.upsertIsin({
-      isin: sf.isin,
-      name: sf.name,
-      assetType: existing?.assetType ?? 'Fondos MyInvestor',
-      geography: existing?.geography ?? [],
-      sectors: existing?.sectors ?? [],
-      assetClassPro: existing?.assetClassPro ?? [],
-    });
-  });
-
-  setPreviewOpen(false);
-  setSummary(null);
-  setEditableISINs(new Map()); // Limpiar estado al terminar
-  setSelectedEntity(null);
-  setSelectedRoboId('');
-  setNewRoboName('');
-  toast.success(`Importación completada: ${summary.newMovementsCount} nuevos movimientos`);
-};
-
   const handleConfirmOpenbank = () => {
     if (!openbankSummary) return;
     const updatedAssets = applyOpenbankSnapshot(openbankSummary, p.assets);
