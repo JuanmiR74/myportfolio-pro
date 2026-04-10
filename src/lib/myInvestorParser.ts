@@ -11,6 +11,9 @@ export interface ParsedMovement {
 }
 
 export interface ImportSummary {
+  // Totales ACUMULADOS (existentes + nuevos)
+  // fundBreakdown = pesos sobre histórico completo
+  // movements = solo nuevos del fichero (a añadir al Robo)
   totalAportaciones: number;
   countAportaciones: number;
   totalComisiones: number;
@@ -103,11 +106,24 @@ function movementKey(date: string, desc: string, amount: number): string {
   return `${date}|${desc.trim().toUpperCase()}|${amount.toFixed(2)}`;
 }
 
+/**
+ * Parsea un fichero XLSX de MyInvestor y lo fusiona con los movimientos
+ * ya registrados en el Robo-Advisor existente.
+ *
+ * Flujo:
+ * 1. Parsear TODOS los movimientos del fichero
+ * 2. Deduplicar contra existingMovements (clave: fecha|descripción|importe)
+ * 3. Fusionar: allMovements = existingMovements + newMovements
+ * 4. Calcular totales y fundBreakdown sobre el universo COMPLETO (no solo los nuevos)
+ *
+ * Así los pesos, ISINs y totales siempre reflejan toda la historia acumulada.
+ */
 export function parseMyInvestorXLSX(
   rows: unknown[][],
   existingMovements?: RoboMovement[]
 ): ImportSummary {
-  // Build set of existing movement keys for dedup
+
+  // ── 1. Construir set de claves existentes para dedup ────────────────────
   const existingKeys = new Set<string>();
   if (existingMovements) {
     for (const m of existingMovements) {
@@ -115,7 +131,7 @@ export function parseMyInvestorXLSX(
     }
   }
 
-  // Find header row
+  // ── 2. Localizar cabecera del fichero ───────────────────────────────────
   let headerIdx = -1;
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -124,93 +140,128 @@ export function parseMyInvestorXLSX(
       break;
     }
   }
-
   if (headerIdx === -1) {
     throw new Error('No se encontró la cabecera del fichero MyInvestor');
   }
 
-  const movements: ParsedMovement[] = [];
-  const fundTotals: Record<string, { label: string; isin: string; total: number }> = {};
-  let totalAportaciones = 0;
-  let countAportaciones = 0;
-  let totalComisiones = 0;
-  let countComisiones = 0;
-  let totalIntereses = 0;
-  let currentCash = 0;
+  // ── 3. Parsear movimientos del fichero — separar nuevos de duplicados ───
+  const newMovements: ParsedMovement[] = [];
   let duplicatesSkipped = 0;
+  let currentCash = 0;
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length < 5) continue;
 
     const dateRaw = row[0];
-    const desc = String(row[2] || '');
-    const amount = parseAmount(row[4]);
+    const desc    = String(row[2] || '').trim();
+    const amount  = parseAmount(row[4]);
 
-    if (!desc || desc.trim() === '') continue;
+    if (!desc) continue;
 
+    // Convertir fecha Excel (número serial o string)
     let dateStr = '';
     if (typeof dateRaw === 'number') {
-      const d = new Date((dateRaw - 25569) * 86400000);
-      dateStr = d.toISOString().split('T')[0];
+      dateStr = new Date((dateRaw - 25569) * 86400000).toISOString().split('T')[0];
     } else if (typeof dateRaw === 'string') {
       dateStr = dateRaw;
     }
+    if (!dateStr) continue;
 
-    // Dedup check
+    // Dedup: si ya existe este movimiento, saltarlo
     const key = movementKey(dateStr, desc, amount);
     if (existingKeys.has(key)) {
       duplicatesSkipped++;
       continue;
     }
 
-    const category = classifyMovement(desc);
-    const fund = category === 'fondo' ? identifyFund(desc) : null;
+    const category     = classifyMovement(desc);
+    const fund         = category === 'fondo' ? identifyFund(desc) : null;
     const isCommission = category === 'comision';
 
-    movements.push({
-      date: dateStr,
+    newMovements.push({
+      date:        dateStr,
       description: desc,
       amount,
-      commission: isCommission ? Math.abs(amount) : 0,
+      commission:  isCommission ? Math.abs(amount) : 0,
       category,
-      fundName: fund?.label,
-      isin: fund?.isin,
+      fundName:    fund?.label,
+      isin:        fund?.isin,
     });
-
-    switch (category) {
-      case 'aportacion':
-        totalAportaciones += amount;
-        countAportaciones++;
-        break;
-      case 'comision':
-        totalComisiones += Math.abs(amount);
-        countComisiones++;
-        break;
-      case 'intereses':
-        totalIntereses += amount;
-        break;
-      case 'fondo':
-        if (fund) {
-          if (!fundTotals[fund.key]) fundTotals[fund.key] = { label: fund.label, isin: fund.isin, total: 0 };
-          fundTotals[fund.key].total += Math.abs(amount);
-        }
-        break;
-    }
   }
 
+  // Saldo efectivo: última fila del fichero, columna 6
   const lastRow = rows[rows.length - 1];
   if (lastRow && lastRow.length >= 6) {
     currentCash = parseAmount(lastRow[5]);
   }
 
+  // ── 4. Reconstruir histórico completo: existentes + nuevos ──────────────
+  // Convertir existingMovements a ParsedMovement para poder procesarlos igual
+  const existingParsed: ParsedMovement[] = (existingMovements || []).map(m => ({
+    date:        m.date,
+    description: m.description,
+    amount:      m.amount,
+    commission:  m.commission,
+    category:    m.category,
+    fundName:    m.fundName,
+    isin:        m.isin,
+  }));
+
+  const allMovements: ParsedMovement[] = [...existingParsed, ...newMovements];
+
+  // ── 5. Calcular totales sobre el universo COMPLETO ───────────────────────
+  const fundTotals: Record<string, { label: string; isin: string; total: number }> = {};
+  let totalAportaciones = 0;
+  let countAportaciones = 0;
+  let totalComisiones   = 0;
+  let countComisiones   = 0;
+  let totalIntereses    = 0;
+
+  for (const m of allMovements) {
+    switch (m.category) {
+      case 'aportacion':
+        totalAportaciones += m.amount;
+        countAportaciones++;
+        break;
+      case 'comision':
+        totalComisiones += Math.abs(m.amount);
+        countComisiones++;
+        break;
+      case 'intereses':
+        totalIntereses += m.amount;
+        break;
+      case 'fondo': {
+        // Identificar el fondo desde el nombre guardado o re-identificar desde descripción
+        const fund = m.fundName
+          ? FUND_PATTERNS.find(fp => fp.label === m.fundName)
+            ? { key: FUND_PATTERNS.find(fp => fp.label === m.fundName)!.key, label: m.fundName, isin: m.isin || '' }
+            : identifyFund(m.description)
+          : identifyFund(m.description);
+
+        if (fund) {
+          if (!fundTotals[fund.key]) {
+            fundTotals[fund.key] = { label: fund.label, isin: fund.isin, total: 0 };
+          }
+          fundTotals[fund.key].total += Math.abs(m.amount);
+          // Preservar ISIN si el existente no lo tiene pero el nuevo sí
+          if (!fundTotals[fund.key].isin && fund.isin) {
+            fundTotals[fund.key].isin = fund.isin;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // ── 6. Construir fundBreakdown con pesos sobre el total acumulado ────────
   const totalFundInvested = Object.values(fundTotals).reduce((s, f) => s + f.total, 0);
   const fundBreakdown = Object.entries(fundTotals)
     .map(([, { label, isin, total }]) => ({
-      name: label,
+      name:          label,
       isin,
       totalInvested: total,
-      weight: totalFundInvested > 0 ? (total / totalFundInvested) * 100 : 0,
+      weight:        totalFundInvested > 0 ? (total / totalFundInvested) * 100 : 0,
     }))
     .sort((a, b) => b.weight - a.weight);
 
@@ -221,61 +272,13 @@ export function parseMyInvestorXLSX(
     countComisiones,
     totalIntereses,
     fundBreakdown,
-    movements,
-    investedValue: totalAportaciones,
+    movements:         newMovements,       // solo los NUEVOS van al array de movimientos a añadir
+    investedValue:     totalAportaciones,  // total acumulado histórico
     currentCash,
-    newMovementsCount: movements.length,
+    newMovementsCount: newMovements.length,
     duplicatesSkipped,
   };
 }
-
-
-// ✅ NUEVA FUNCIÓN auxiliar (añade después de parseMyInvestorXLSX):
-export function recalculateWeightsWithExisting(
-  newFundBreakdown: ImportSummary['fundBreakdown'],
-  existingMovements: RoboMovement[] | undefined
-): ImportSummary['fundBreakdown'] {
-  if (!existingMovements || existingMovements.length === 0) {
-    return newFundBreakdown; // Sin cambios si no hay movimientos previos
-  }
-
-  // Calcular totales PREVIOS por fondo
-  const existingTotals: Record<string, number> = {};
-  existingMovements.forEach(m => {
-    if (m.isin) {
-      existingTotals[m.isin] = (existingTotals[m.isin] || 0) + m.amount;
-    }
-  });
-
-  // Fusionar: ISIN nuevos con existentes
-  const mergedTotals = { ...existingTotals };
-  
-  newFundBreakdown.forEach(fund => {
-    if (fund.isin) {
-      mergedTotals[fund.isin] = (mergedTotals[fund.isin] || 0) + fund.totalInvested;
-    }
-  });
-
-  // Recalcular pesos sobre el TOTAL ACUMULADO
-  const totalAccumulated = Object.values(mergedTotals).reduce((s, v) => s + v, 0);
-  
-  return Object.entries(mergedTotals)
-    .filter(([, amount]) => amount > 0)
-    .map(([isin, amount]) => {
-      // Buscar el nombre original del fondo
-      const fundInfo = newFundBreakdown.find(f => f.isin === isin);
-      return {
-        name: fundInfo?.name || isin,
-        isin,
-        totalInvested: amount,
-        weight: totalAccumulated > 0 ? (amount / totalAccumulated) * 100 : 0,
-      };
-    })
-    .sort((a, b) => b.weight - a.weight);
-}
-
-// Nota: el uso de recalculateWeightsWithExisting pertenece a RoboImporter.tsx,
-// no a este módulo. Ver handleFileUpload en ese componente.
 
 
 
