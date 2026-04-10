@@ -420,7 +420,10 @@ const validateISINs = (): boolean => {
                 </div>
               </div>
             )}
-
+                    </Table>
+                  </div>
+                </div>
+                {/* ISIN library note */}
             {/* ─── Openbank preview ─── */}
             {openbankSummary && (
               <div className="space-y-4">
