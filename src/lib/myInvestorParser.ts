@@ -274,31 +274,8 @@ export function recalculateWeightsWithExisting(
     .sort((a, b) => b.weight - a.weight);
 }
 
-// ✅ MODIFICAR parseMyInvestorXLSX para recibir parámetro adicional:
-// (línea 106-109) - ya lo tiene, pero ahora llámalo desde RoboImporter así:
-
-// En RoboImporter.tsx handleFileUpload (línea 63-69):
-if (selectedEntity === 'myinvestor') {
-  const existingMovements = selectedRoboId !== NEW_ROBO
-    ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements
-    : undefined;
-  let result = parseMyInvestorXLSX(rows, existingMovements);
-  
-  // ✅ RECALCULAR pesos con movimientos acumulados
-  if (existingMovements && existingMovements.length > 0) {
-    const recalculatedFunds = recalculateWeightsWithExisting(
-      result.fundBreakdown,
-      existingMovements
-    );
-    result = {
-      ...result,
-      fundBreakdown: recalculatedFunds,
-    };
-  }
-  
-  setSummary(result);
-  setOpenbankSummary(null);
-}
+// Nota: el uso de recalculateWeightsWithExisting pertenece a RoboImporter.tsx,
+// no a este módulo. Ver handleFileUpload en ese componente.
 
 
 
