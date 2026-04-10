@@ -95,7 +95,7 @@ const validateISINs = (): boolean => {
 
 const handleConfirmMyInvestor = () => {
     if (!summary) return;
-
+    
     // 1. Validar ISINs editados
     if (!validateISINs()) return;
 
@@ -106,7 +106,7 @@ const handleConfirmMyInvestor = () => {
       : [];
     const allMovements = [...existingMovements, ...newMovements];
 
-    // 2. Usar ISINs editados si existen
+    // 2. Crear sub-fondos usando ISINs editados si existen
     const subFunds: RoboSubFund[] = summary.fundBreakdown
       .filter(f => f.totalInvested > 0)
       .map(f => {
@@ -139,7 +139,7 @@ const handleConfirmMyInvestor = () => {
       p.updateRoboAdvisor(selectedRoboId, roboData);
     }
 
-    // 3. Upsert ISINs en la librería global
+    // 3. Guardar ISINs en la librería global
     subFunds.forEach(sf => {
       if (!sf.isin) return;
       const existing = p.getByIsin(sf.isin);
@@ -160,8 +160,8 @@ const handleConfirmMyInvestor = () => {
     setSelectedRoboId('');
     setNewRoboName('');
     toast.success(`Importación completada: ${summary.newMovementsCount} nuevos movimientos`);
-  }; // <--- Este es el único cierre que debe haber aquí
-  
+  };
+
   const handleConfirmOpenbank = () => {
     if (!openbankSummary) return;
     const updatedAssets = applyOpenbankSnapshot(openbankSummary, p.assets);
@@ -178,14 +178,14 @@ const handleConfirmMyInvestor = () => {
         p.addAsset(asset);
       }
     });
-    // Upsert ISINs from Openbank.
+
     openbankSummary.funds.forEach(f => {
       if (!f.isin) return;
       const existing = p.getByIsin(f.isin);
       p.upsertIsin({
         isin: f.isin,
         name: f.name,
-        assetType: existing?.assetType ?? 'Fondos BBK',
+        assetType: existing?.assetType ?? 'Fondos Openbank',
         geography: existing?.geography ?? [],
         sectors: existing?.sectors ?? [],
         assetClassPro: existing?.assetClassPro ?? [],
@@ -194,7 +194,7 @@ const handleConfirmMyInvestor = () => {
     setPreviewOpen(false);
     setOpenbankSummary(null);
     setSelectedEntity(null);
-    toast.success(`Openbank importado: ${openbankSummary.newFundsCount} nuevos, ${openbankSummary.updatedFundsCount} actualizados`);
+    toast.success(`Openbank importado: ${openbankSummary.newFundsCount} nuevos`);
   };
 
   const handleCancel = () => {
