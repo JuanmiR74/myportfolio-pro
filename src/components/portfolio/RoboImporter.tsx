@@ -95,7 +95,7 @@ const validateISINs = (): boolean => {
 const handleConfirmMyInvestor = () => {
     if (!summary) return;
     
-    // 1. Validar ISINs
+    // 1. Validar ISINs manuales
     if (!validateISINs()) return;
 
     const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
@@ -105,6 +105,7 @@ const handleConfirmMyInvestor = () => {
       : [];
     const allMovements = [...existingMovements, ...newMovements];
 
+    // 2. Mapear subfondos con los ISINs del usuario
     const subFunds: RoboSubFund[] = summary.fundBreakdown
       .filter(f => f.totalInvested > 0)
       .map(f => {
@@ -127,6 +128,7 @@ const handleConfirmMyInvestor = () => {
       subFunds,
     };
 
+    // 3. Guardar en base de datos local
     if (selectedRoboId === NEW_ROBO) {
       p.addRoboAdvisor({
         name: newRoboName.trim(),
@@ -137,6 +139,7 @@ const handleConfirmMyInvestor = () => {
       p.updateRoboAdvisor(selectedRoboId, roboData);
     }
 
+    // 4. Actualizar librería de ISINs
     subFunds.forEach(sf => {
       if (!sf.isin) return;
       const existing = p.getByIsin(sf.isin);
@@ -150,6 +153,7 @@ const handleConfirmMyInvestor = () => {
       });
     });
 
+    // 5. Limpiar y cerrar
     setPreviewOpen(false);
     setSummary(null);
     setEditableISINs(new Map());
@@ -203,7 +207,6 @@ const handleConfirmMyInvestor = () => {
   const roboName = selectedRoboId === NEW_ROBO
     ? newRoboName.trim() || 'Nuevo Robo-Advisor'
     : p.roboAdvisors.find(r => r.id === selectedRoboId)?.name ?? '';
-
   // AQUÍ TERMINA LA LÓGICA Y EMPIEZA EL RENDER
 
   return (
