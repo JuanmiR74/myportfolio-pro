@@ -488,7 +488,7 @@ const validateISINs = (): boolean => {
       </CardContent>
     </Card>
   );
-}//
+}
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: 'primary' | 'loss' }) {
   return (
