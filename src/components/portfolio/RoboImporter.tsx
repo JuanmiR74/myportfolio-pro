@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Upload, FileSpreadsheet, CircleCheck as CheckCircle2, CircleAlert as AlertCircle,
-  Building2, Clock, ArrowRight, ChevronDown,
+  Building2, Clock, ArrowRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,8 +21,6 @@ import { toast } from 'sonner';
 type ImportEntity = 'myinvestor' | 'openbank' | 'other';
 const NEW_ROBO = '__new__';
 
-
-
 function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
@@ -30,7 +28,7 @@ function fmt(n: number) {
 export default function RoboImporter() {
   const p = usePortfolio();
   const fileRef = useRef<HTMLInputElement>(null);
-const [editableISINs, setEditableISINs] = useState<Map<string, string>>(new Map());
+  const [editableISINs, setEditableISINs] = useState<Map<string, string>>(new Map());
   const [selectedEntity, setSelectedEntity] = useState<ImportEntity | null>(null);
   const [selectedRoboId, setSelectedRoboId] = useState<string>('');
   const [newRoboName, setNewRoboName] = useState('');
@@ -51,18 +49,20 @@ const [editableISINs, setEditableISINs] = useState<Map<string, string>>(new Map(
       (selectedRoboId && selectedRoboId !== NEW_ROBO) ||
       (selectedRoboId === NEW_ROBO && newRoboName.trim().length > 0)
     ));
-const validateISINs = (): boolean => {
-  const allFunds = summary?.fundBreakdown || [];
-  const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
-  if (missingISIN) {
-    const editedISIN = editableISINs.get(missingISIN.name)?.trim();
-    if (!editedISIN) {
-      toast.error(`Fondo "${missingISIN.name}" necesita un ISIN asignado`);
-      return false;
+
+  const validateISINs = (): boolean => {
+    const allFunds = summary?.fundBreakdown || [];
+    const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
+    if (missingISIN) {
+      const editedISIN = editableISINs.get(missingISIN.name)?.trim();
+      if (!editedISIN) {
+        toast.error(`Fondo "${missingISIN.name}" necesita un ISIN asignado`);
+        return false;
+      }
     }
-  }
-  return true;
-};
+    return true;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -92,10 +92,9 @@ const validateISINs = (): boolean => {
     setLoading(false);
     if (fileRef.current) fileRef.current.value = '';
   };
-const handleConfirmMyInvestor = () => {
+
+  const handleConfirmMyInvestor = () => {
     if (!summary) return;
-    
-    // 1. Validar ISINs manuales
     if (!validateISINs()) return;
 
     const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
@@ -105,7 +104,6 @@ const handleConfirmMyInvestor = () => {
       : [];
     const allMovements = [...existingMovements, ...newMovements];
 
-    // 2. Mapear subfondos con los ISINs del usuario
     const subFunds: RoboSubFund[] = summary.fundBreakdown
       .filter(f => f.totalInvested > 0)
       .map(f => {
@@ -128,18 +126,12 @@ const handleConfirmMyInvestor = () => {
       subFunds,
     };
 
-    // 3. Guardar en base de datos local
     if (selectedRoboId === NEW_ROBO) {
-      p.addRoboAdvisor({
-        name: newRoboName.trim(),
-        entity: 'MyInvestor',
-        ...roboData,
-      });
+      p.addRoboAdvisor({ name: newRoboName.trim(), entity: 'MyInvestor', ...roboData });
     } else {
       p.updateRoboAdvisor(selectedRoboId, roboData);
     }
 
-    // 4. Actualizar librería de ISINs
     subFunds.forEach(sf => {
       if (!sf.isin) return;
       const existing = p.getByIsin(sf.isin);
@@ -153,7 +145,6 @@ const handleConfirmMyInvestor = () => {
       });
     });
 
-    // 5. Limpiar y cerrar
     setPreviewOpen(false);
     setSummary(null);
     setEditableISINs(new Map());
@@ -207,7 +198,6 @@ const handleConfirmMyInvestor = () => {
   const roboName = selectedRoboId === NEW_ROBO
     ? newRoboName.trim() || 'Nuevo Robo-Advisor'
     : p.roboAdvisors.find(r => r.id === selectedRoboId)?.name ?? '';
-  // AQUÍ TERMINA LA LÓGICA Y EMPIEZA EL RENDER
 
   return (
     <Card className="border-border/50 bg-card/80 backdrop-blur">
@@ -218,7 +208,6 @@ const handleConfirmMyInvestor = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Step 1: Entity selector */}
         <div>
           <p className="text-sm text-muted-foreground mb-3">¿De qué entidad es el fichero?</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -254,7 +243,6 @@ const handleConfirmMyInvestor = () => {
           </div>
         </div>
 
-        {/* Step 2a: MyInvestor — robo-advisor mapping */}
         {selectedEntity === 'myinvestor' && (
           <div className="border border-dashed border-primary/40 rounded-lg p-5 space-y-4 bg-primary/5">
             <div className="space-y-1.5">
@@ -270,9 +258,7 @@ const handleConfirmMyInvestor = () => {
                       {r.movements?.length ? ` (${r.movements.length} movs.)` : ''}
                     </SelectItem>
                   ))}
-                  <SelectItem value={NEW_ROBO}>
-                    ✚ Crear nuevo Robo-Advisor
-                  </SelectItem>
+                  <SelectItem value={NEW_ROBO}>✚ Crear nuevo Robo-Advisor</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -308,7 +294,6 @@ const handleConfirmMyInvestor = () => {
           </div>
         )}
 
-        {/* Step 2b: Openbank upload */}
         {selectedEntity === 'openbank' && (
           <div className="border border-dashed border-chart-2/40 rounded-lg p-6 text-center space-y-3 bg-chart-2/5">
             <Upload className="h-8 w-8 text-chart-2 mx-auto" />
@@ -324,90 +309,75 @@ const handleConfirmMyInvestor = () => {
           </div>
         )}
 
-        {/* Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={open => !open && handleCancel()}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-primary" />
-                {summary
-                  ? `Vista Previa — MyInvestor → ${roboName}`
-                  : 'Resumen de Importación — Openbank'}
+                {summary ? `Vista Previa — MyInvestor → ${roboName}` : 'Resumen de Importación — Openbank'}
               </DialogTitle>
             </DialogHeader>
 
-            {/* ─── MyInvestor preview ─── */}
             {summary && (
               <div className="space-y-4">
-                {/* Stats row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <Stat label="Nuevos movs." value={summary.newMovementsCount.toString()} accent="primary" />
                   <Stat label="Duplicados ignorados" value={summary.duplicatesSkipped.toString()} />
                   <Stat label="Total aportado" value={fmt(summary.investedValue)} accent="primary" />
                   <Stat label="Comisiones" value={fmt(summary.totalComisiones)} accent="loss" />
                 </div>
-
-                {/* Fund breakdown table */}
                 <div>
-                  <p className="text-sm font-medium mb-2">
-                    Composición resultante del Robo-Advisor
-                    <span className="text-xs text-muted-foreground ml-2">(se guardará como desglose de fondos)</span>
-                  </p>
+                  <p className="text-sm font-medium mb-2">Composición resultante del Robo-Advisor</p>
                   <div className="rounded-md border border-border/50 overflow-hidden">
-
-<Table>
-  <TableHeader>
-    <TableRow className="bg-muted/30">
-      <TableHead className="text-xs">Fondo</TableHead>
-      <TableHead className="text-xs w-40">ISIN (editable)</TableHead>
-      <TableHead className="text-right text-xs w-28">Invertido</TableHead>
-      <TableHead className="text-right text-xs w-20">Peso</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    {summary.fundBreakdown.map(f => (
-      <TableRow key={f.name}>
-        <TableCell className="text-xs font-medium py-2">{f.name}</TableCell>
-       <TableCell className="text-xs py-2">
-  {f.isin && f.isin.trim() ? (
-    <span className="font-mono text-muted-foreground">{f.isin}</span>
-  ) : (
-    <Input
-      value={editableISINs.get(f.name) || ''}
-      onChange={(e) => {
-        const newISINs = new Map(editableISINs);
-        newISINs.set(f.name, e.target.value.toUpperCase());
-        setEditableISINs(newISINs);
-      }}
-      placeholder="Introduce ISIN..."
-      className="h-7 text-xs font-mono"
-      data-testid={`input-isin-${f.name}`}
-    />
-  )}
-</TableCell>
-        <TableCell className="text-right font-mono text-xs py-2">{fmt(f.totalInvested)}</TableCell>
-        <TableCell className={`text-right font-mono text-xs font-semibold py-2 ${f.weight >= 20 ? 'text-primary' : ''}`}>
-          {f.weight.toFixed(1)}%
-        </TableCell>
-      </TableRow>
-    ))}
-  </TableBody>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead className="text-xs">Fondo</TableHead>
+                          <TableHead className="text-xs w-40">ISIN (editable)</TableHead>
+                          <TableHead className="text-right text-xs w-28">Invertido</TableHead>
+                          <TableHead className="text-right text-xs w-20">Peso</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {summary.fundBreakdown.map(f => (
+                          <TableRow key={f.name}>
+                            <TableCell className="text-xs font-medium py-2">{f.name}</TableCell>
+                            <TableCell className="text-xs py-2">
+                              {f.isin && f.isin.trim() ? (
+                                <span className="font-mono text-muted-foreground">{f.isin}</span>
+                              ) : (
+                                <Input
+                                  value={editableISINs.get(f.name) || ''}
+                                  onChange={(e) => {
+                                    const newISINs = new Map(editableISINs);
+                                    newISINs.set(f.name, e.target.value.toUpperCase());
+                                    setEditableISINs(newISINs);
+                                  }}
+                                  placeholder="Introduce ISIN..."
+                                  className="h-7 text-xs font-mono"
+                                  data-testid={`input-isin-${f.name}`}
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs py-2">{fmt(f.totalInvested)}</TableCell>
+                            <TableCell className={`text-right font-mono text-xs font-semibold py-2 ${f.weight >= 20 ? 'text-primary' : ''}`}>
+                              {f.weight.toFixed(1)}%
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
                     </Table>
                   </div>
                 </div>
-
-                {/* ISIN library note */}
                 <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-lg p-3">
                   <AlertCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
                     <strong>{summary.fundBreakdown.filter(f => f.isin).length} ISINs</strong> se añadirán automáticamente a la Librería Global.
-                    Al confirmar, el desglose de fondos se guardará en el Robo-Advisor y el X-Ray lo usará para el análisis.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* ─── Openbank preview ─── */}
             {openbankSummary && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -448,23 +418,12 @@ const handleConfirmMyInvestor = () => {
                     </TableBody>
                   </Table>
                 </div>
-                <div className="flex items-start gap-2 bg-chart-2/5 border border-chart-2/20 rounded-lg p-3">
-                  <AlertCircle className="h-4 w-4 text-chart-2 shrink-0 mt-0.5" />
-                  <p className="text-xs text-muted-foreground">
-                    Los valores actuales reemplazarán los existentes.
-                    <strong> {openbankSummary.funds.filter(f => f.isin).length} ISINs</strong> se añadirán a la Librería Global.
-                  </p>
-                </div>
               </div>
             )}
 
             <DialogFooter className="gap-2 pt-2">
               <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
-              <Button
-                onClick={summary ? handleConfirmMyInvestor : handleConfirmOpenbank}
-                className="gap-1.5"
-                data-testid="button-confirm-import"
-              >
+              <Button onClick={summary ? handleConfirmMyInvestor : handleConfirmOpenbank} className="gap-1.5" data-testid="button-confirm-import">
                 <CheckCircle2 className="h-4 w-4" /> Confirmar e Importar
               </Button>
             </DialogFooter>
