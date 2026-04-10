@@ -402,7 +402,7 @@ const validateISINs = (): boolean => {
       ...roboData,
     })
   } else {
-    p.updateRoboAdvisor(selectedRoboId, roboData);
+    p.updateRoboAdvisor(selectedRoboId, roboData)
   }
 
   // ✅ Upsert ALL ISINs (incluyendo editados)
