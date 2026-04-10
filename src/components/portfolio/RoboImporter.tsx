@@ -101,17 +101,6 @@ const validateISINs = (): boolean => {
 
   const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
 
-  const today = new Date().toISOString().split('T')[0];
-  const roboData = {
-    totalValue: totalFundValue + summary.currentCash,
-    investedValue: summary.investedValue,
-    lastUpdated: today,
-    movements: allMovements,
-    subFunds,
-  };
-
-
-   
   const newMovements = toRoboMovements(summary.movements);
   const existingMovements = selectedRoboId !== NEW_ROBO
     ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements ?? []
