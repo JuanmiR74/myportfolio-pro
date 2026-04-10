@@ -407,9 +407,10 @@ const validateISINs = (): boolean => {
       </TableRow>
     ))}
   </TableBody>
-</Table>
                     </Table>
                   </div>
+                </div>
+
                 {/* ISIN library note */}
                 <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-lg p-3">
                   <AlertCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
@@ -420,10 +421,7 @@ const validateISINs = (): boolean => {
                 </div>
               </div>
             )}
-                    </Table>
-                  </div>
-                </div>
-                {/* ISIN library note */}
+
             {/* ─── Openbank preview ─── */}
             {openbankSummary && (
               <div className="space-y-4">
