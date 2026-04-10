@@ -120,6 +120,7 @@ const validateISINs = (): boolean => {
       };
     })
     .filter(f => f.isin); // Solo guardar los que finalmente tengan ISIN
+   };
   // ✅ Upsert ALL ISINs (incluyendo editados)
   subFunds.forEach(sf => {
     if (!sf.isin) return;
