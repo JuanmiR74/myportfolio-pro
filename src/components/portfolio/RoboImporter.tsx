@@ -352,7 +352,7 @@ const validateISINs = (): boolean => {
                     <span className="text-xs text-muted-foreground ml-2">(se guardará como desglose de fondos)</span>
                   </p>
                   <div className="rounded-md border border-border/50 overflow-hidden">
-               // Reemplaza la tabla de fundBreakdown (líneas 336-365) con:
+
 <Table>
   <TableHeader>
     <TableRow className="bg-muted/30">
@@ -392,60 +392,6 @@ const validateISINs = (): boolean => {
   </TableBody>
 </Table>
                     
-const validateISINs = (): boolean => {
-  // 1. Si no hay resumen, no hay nada que validar
-  if (!summary) return false;
-
-  // 2. Extraemos los fondos y buscamos si falta algún ISIN
-  const allFunds = summary.fundBreakdown;
-  const missingISIN = allFunds.find(f => !f.isin || !f.isin.trim());
-
-  // 3. Si falta un ISIN, miramos si el usuario lo ha escrito en el input manual (editableISINs)
-  if (missingISIN) {
-    const editedISIN = editableISINs.get(missingISIN.name)?.trim();
-    if (!editedISIN) {
-      toast.error(`Fondo "${missingISIN.name}" necesita un ISIN asignado`);
-      return false; // Detiene la importación
-    }
-  }
-
-  return true; // Todo correcto, podemos seguir
-};
-
-                    
-  
-
-
-  
-
-// Modifica handleConfirmMyInvestor así:.
-const handleConfirmMyInvestor = () => {
-  if (!summary) return;
-  
-  // ✅ Validar ISINs editados
-  if (!validateISINs()) return;
-
-  const totalFundValue = summary.fundBreakdown.reduce((s, f) => s + f.totalInvested, 0);
-  const newMovements = toRoboMovements(summary.movements);
-  const existingMovements = selectedRoboId !== NEW_ROBO
-    ? p.roboAdvisors.find(r => r.id === selectedRoboId)?.movements ?? []
-    : [];
-  const allMovements = [...existingMovements, ...newMovements];
-
-  // ✅ Usar ISINs editados si existen
-  const subFunds: RoboSubFund[] = summary.fundBreakdown
-    .filter(f => f.totalInvested > 0)
-    .map(f => {
-      const isin = editableISINs.get(f.name)?.trim() || f.isin;
-      return {
-        id: crypto.randomUUID(),
-        isin,
-        name: f.name,
-        weightPct: f.weight,
-      };
-    })
-    .filter(f => f.isin); // Solo guardar los que tienen ISIN
-
   const today = new Date().toISOString().split('T')[0];
   const roboData = {
     totalValue: totalFundValue + summary.currentCash,
