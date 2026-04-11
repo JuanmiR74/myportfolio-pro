@@ -384,11 +384,14 @@ export default function RoboImporter() {
             {/* Preview MyInvestor */}
             {summary && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <Stat label="Nuevos movs."        value={summary.newMovementsCount.toString()} accent="primary" />
-                  <Stat label="Duplicados ignorados" value={summary.duplicatesSkipped.toString()} />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <Stat label="Total aportado"       value={fmt(summary.investedValue)}          accent="primary" />
                   <Stat label="Comisiones"           value={fmt(summary.totalComisiones)}        accent="loss" />
+                  <Stat label="Abonos (intereses)"   value={fmt(summary.totalAbonos)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Stat label="Nuevos movimientos"  value={summary.newMovementsCount.toString()} accent="primary" />
+                  <Stat label="Duplicados ignorados" value={summary.duplicatesSkipped.toString()} />
                 </div>
 
                 <div>
