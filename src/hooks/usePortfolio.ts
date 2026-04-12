@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification, RoboSubFund, IsinEntry } from '@/types/portfolio';
+import { Asset, RoboAdvisor, PortfolioState, FundClassification, ThreeDimensionClassification, RoboSubFund, IsinEntry, RoboMovement } from '@/types/portfolio';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -15,6 +15,26 @@ const EMPTY_STATE: PortfolioState = {
 
 function emptyThreeDim(): ThreeDimensionClassification {
   return { geography: [], sectors: [], assetClassPro: [] };
+}
+
+/**
+ * Calculates the total invested capital based on a list of movements.
+ * Sums up 'aportacion' and subtracts 'comision'.
+ */
+export function calcInvestedFromMovements(movements: RoboMovement[]): number {
+  if (!movements || movements.length === 0) return 0;
+  
+  return movements.reduce((total, mov) => {
+    if (mov.category === 'aportacion') {
+      return total + mov.amount;
+    }
+    if (mov.category === 'comision') {
+      return total - mov.commission; // Commissions reduce net invested or are separate costs
+    }
+    // 'fundo', 'intereses', 'otro' typically don't affect principal invested calculation directly 
+    // unless specific logic dictates otherwise. Assuming standard contribution tracking.
+    return total;
+  }, 0);
 }
 
 export function usePortfolio() {
