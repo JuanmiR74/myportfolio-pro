@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TransactionHistory } from '@/components/portfolio/TransactionHistory';
 import { calcInvestedFromMovements } from '@/hooks/usePortfolio';
 import { usePriceUpdater, type PriceUpdateItem } from '@/hooks/usePriceUpdater';
@@ -45,12 +45,12 @@ function fmtPct(n: number) {
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK';
 
 function getInvested(asset: Asset): number {
-  if (asset.movements && asset.movements.length > 0) return calcInvestedFromMovements(asset.movements as any);
+  if (asset.movements?.length) return calcInvestedFromMovements(asset.movements as any);
   return asset.buyPrice;
 }
 
 // ---------------------------------------------------------------------------
-// Modal de resultados de actualización de precios
+// Modal de resultados de actualización
 // ---------------------------------------------------------------------------
 function PriceResultsModal({
   open, onClose, results, updatedAt,
@@ -60,8 +60,8 @@ function PriceResultsModal({
   results:   PriceUpdateItem[];
   updatedAt: Date | null;
 }) {
-  const ok  = results.filter(r => r.ok);
-  const err = results.filter(r => !r.ok);
+  const ok  = results.filter(r => r.ok)  as Extract<PriceUpdateItem, { ok: true }>[];
+  const err = results.filter(r => !r.ok) as Extract<PriceUpdateItem, { ok: false }>[];
 
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
@@ -78,7 +78,7 @@ function PriceResultsModal({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Resumen */}
+        {/* Resumen numérico */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="rounded-lg bg-green-500/10 p-3 text-center">
             <p className="text-2xl font-bold font-mono text-green-500">{ok.length}</p>
@@ -90,46 +90,46 @@ function PriceResultsModal({
           </div>
         </div>
 
-        {/* Actualizados correctamente */}
+        {/* Precios actualizados */}
         {ok.length > 0 && (
-          <div className="space-y-1 mb-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Precios actualizados</p>
-            {ok.map(r => {
-              const res = r as Extract<PriceUpdateItem, { ok: true }>;
-              return (
-                <div key={res.assetId} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
-                  <div>
-                    <span className="text-sm font-medium">{res.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono ml-2">{res.marketSymbol}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-mono font-semibold">{fmt(res.newPrice)}</span>
-                    <span className={`text-xs font-mono ml-2 ${res.changePct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {fmtPct(res.changePct)}
-                    </span>
-                  </div>
+          <div className="mb-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+              Precios actualizados
+            </p>
+            {ok.map(r => (
+              <div key={r.assetId}
+                className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
+                <div>
+                  <span className="text-sm font-medium">{r.name}</span>
+                  <Badge variant="secondary" className="font-mono text-[10px] ml-2">{r.marketSymbol}</Badge>
                 </div>
-              );
-            })}
+                <div className="text-right">
+                  <span className="text-sm font-mono font-semibold">{fmt(r.newPrice)}</span>
+                  <span className={`text-xs font-mono ml-2 ${r.changePct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {fmtPct(r.changePct)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {/* Errores */}
         {err.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Errores</p>
-            {err.map(r => {
-              const res = r as Extract<PriceUpdateItem, { ok: false }>;
-              return (
-                <div key={res.assetId} className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0">
-                  <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">{res.name}</p>
-                    <p className="text-xs text-muted-foreground">{res.reason}</p>
-                  </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+              Errores
+            </p>
+            {err.map(r => (
+              <div key={r.assetId}
+                className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0">
+                <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">{r.name}</p>
+                  <p className="text-xs text-muted-foreground">{r.reason}</p>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
 
@@ -147,11 +147,11 @@ function PriceResultsModal({
 export default function FundsTable({
   assets, onAdd, onRemove, onUpdate, onUpdatePrices, apiKey, getByIsin, upsertIsin,
 }: Props) {
-  const [open,          setOpen]          = useState(false);
-  const [entityFilter,  setEntityFilter]  = useState<EntityFilter>('all');
-  const [editingId,     setEditingId]     = useState<string | null>(null);
-  const [historyAsset,  setHistoryAsset]  = useState<Asset | null>(null);
-  const [showResults,   setShowResults]   = useState(false);
+  const [open,         setOpen]         = useState(false);
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
+  const [editingId,    setEditingId]    = useState<string | null>(null);
+  const [historyAssetId, setHistoryAssetId] = useState<string | null>(null);
+  const [showResults,  setShowResults]  = useState(false);
   const [editForm, setEditForm] = useState({
     shares: '', buyPrice: '', currentPrice: '', marketSymbol: '',
   });
@@ -160,41 +160,54 @@ export default function FundsTable({
     shares: '', buyPrice: '', currentPrice: '',
   });
 
-  // ── Hook de precios ────────────────────────────────────────────────────────
+  // Hook de precios
   const { updatePrices, isUpdating, progress, lastUpdated, lastResults } =
     usePriceUpdater({ apiKey, assets, onUpdatePrices });
 
-  // Abrir modal de resultados automáticamente al terminar
+  // Abrir modal cuando termina la actualización y hay resultados
+  // FIX: comprobamos que isUpdating acaba de pasar de true a false
+  const [wasUpdating, setWasUpdating] = useState(false);
   useEffect(() => {
-    if (!isUpdating && lastResults.length > 0) {
+    if (isUpdating) { setWasUpdating(true); return; }
+    if (wasUpdating && lastResults.length > 0) {
       setShowResults(true);
+      setWasUpdating(false);
     }
-  }, [isUpdating, lastResults]);
+  }, [isUpdating, wasUpdating, lastResults.length]);
 
-  // Filtrado
+  // FIX historyAsset: guardamos solo el ID y resolvemos el asset fresco
+  // en cada render desde la prop `assets`. Así cuando addMovement muta el
+  // estado global, FundsTable recibe el nuevo array, y el historyAsset
+  // fresco se pasa a TransactionHistory automáticamente.
+  const historyAsset = historyAssetId
+    ? assets.find(a => a.id === historyAssetId) ?? null
+    : null;
+
+  // Filtrado por entidad
   const filtered = entityFilter === 'all'
     ? assets.filter(a => a.type === 'Fondos MyInvestor' || a.type === 'Fondos BBK')
     : assets.filter(a => a.type === (entityFilter === 'MyInvestor' ? 'Fondos MyInvestor' : 'Fondos BBK'));
-
-  // Sincronizar historyAsset
-  useEffect(() => {
-    if (!historyAsset) return;
-    const updated = assets.find(a => a.id === historyAsset.id);
-    if (updated) setHistoryAsset(updated);
-  }, [assets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Totales
   const totalValue    = filtered.reduce((s, a) => s + a.shares * a.currentPrice, 0);
   const totalInvested = filtered.reduce((s, a) => s + getInvested(a), 0);
   const totalPL       = totalValue - totalInvested;
-  const updatableCount = assets.filter(a => a.isin && a.shares > 0).length;
+
+  // Fondos actualizables (solo tipos fondo, con ISIN)
+  const updatableCount = assets.filter(
+    a => ['Fondos MyInvestor', 'Fondos BBK'].includes(a.type) && a.isin && a.shares > 0
+  ).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleIsinBlur = () => {
     if (!getByIsin || !form.ticker.trim()) return;
     const entry = getByIsin(form.ticker.trim().toUpperCase());
     if (entry) {
-      setForm(prev => ({ ...prev, name: prev.name || entry.name, type: (entry.assetType as AssetType) || prev.type }));
+      setForm(prev => ({
+        ...prev,
+        name: prev.name || entry.name,
+        type: (entry.assetType as AssetType) || prev.type,
+      }));
       toast.info('Datos recuperados de la librería ISIN');
     }
   };
@@ -224,10 +237,10 @@ export default function FundsTable({
 
   const handleSaveEdit = (id: string) => {
     onUpdate(id, {
-      shares:        parseFloat(editForm.shares),
-      buyPrice:      parseFloat(editForm.buyPrice),
-      currentPrice:  parseFloat(editForm.currentPrice),
-      marketSymbol:  editForm.marketSymbol.trim() || undefined,
+      shares:       parseFloat(editForm.shares),
+      buyPrice:     parseFloat(editForm.buyPrice),
+      currentPrice: parseFloat(editForm.currentPrice),
+      ...(editForm.marketSymbol.trim() ? { marketSymbol: editForm.marketSymbol.trim() } : {}),
     } as any);
     setEditingId(null);
   };
@@ -243,7 +256,7 @@ export default function FundsTable({
     <TooltipProvider>
       <Card className="border-border/50 bg-card/80 backdrop-blur">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <CardHeader className="flex flex-row items-center justify-between pb-2 flex-wrap gap-2">
           <CardTitle className="text-base font-semibold">Fondos de Inversión</CardTitle>
 
@@ -277,14 +290,15 @@ export default function FundsTable({
                 {!apiKey
                   ? '⚠ Configura tu Alpha Vantage API Key en Configuración'
                   : updatableCount === 0
-                  ? 'No hay fondos con ISIN'
-                  : `Actualiza ${updatableCount} fondo${updatableCount !== 1 ? 's' : ''} · Si el fondo tiene símbolo de mercado guardado, lo usa directamente`}
+                  ? 'No hay fondos MyInvestor/BBK con ISIN'
+                  : `Actualiza ${updatableCount} fondo${updatableCount !== 1 ? 's' : ''} · Fondos con símbolo guardado usan 1 llamada en vez de 2`}
               </TooltipContent>
             </Tooltip>
 
             {/* Ver últimos resultados */}
             {lastResults.length > 0 && !isUpdating && (
-              <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={() => setShowResults(true)}>
+              <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs"
+                onClick={() => setShowResults(true)}>
                 {lastResults.some(r => !r.ok)
                   ? <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
                   : <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
@@ -304,7 +318,8 @@ export default function FundsTable({
                     <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej: Fidelity MSCI World" />
                   </div>
                   <div><Label>ISIN / Ticker</Label>
-                    <Input value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} onBlur={handleIsinBlur} placeholder="Ej: IE00BYX5NX33" />
+                    <Input value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })}
+                      onBlur={handleIsinBlur} placeholder="Ej: IE00BYX5NX33" />
                   </div>
                   <div><Label>Entidad</Label>
                     <Select value={form.type} onValueChange={v => setForm({ ...form, type: v as AssetType })}>
@@ -323,7 +338,7 @@ export default function FundsTable({
                       <Input type="number" value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} />
                     </div>
                   </div>
-                  <div><Label>Precio Actual Participación (€)</Label>
+                  <div><Label>Precio Actual (€/participación)</Label>
                     <Input type="number" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} />
                   </div>
                   <Button onClick={handleSubmit}>Guardar Fondo</Button>
@@ -341,7 +356,8 @@ export default function FundsTable({
                 <span>Consultando Alpha Vantage…</span><span>{progress}%</span>
               </div>
               <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }} />
               </div>
             </div>
           )}
@@ -370,12 +386,13 @@ export default function FundsTable({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-[200px]">Fondo / ISIN</TableHead>
                 <TableHead>Entidad</TableHead>
-                {/* NUEVA COLUMNA: Símbolo de mercado */}
                 <TableHead>
                   <Tooltip>
-                    <TooltipTrigger className="cursor-help underline decoration-dotted">Símbolo</TooltipTrigger>
-                    <TooltipContent className="text-xs max-w-[200px]">
-                      Símbolo de mercado (ej. VWCE.DEX). Si está relleno, se usa directamente para actualizar el precio sin buscar.
+                    <TooltipTrigger className="cursor-help underline decoration-dotted text-left">
+                      Símbolo
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs max-w-[220px]">
+                      Símbolo de mercado (ej. VWCE.DEX). Si está relleno, la actualización de precios lo usa directamente sin buscar, ahorrando llamadas a la API.
                     </TooltipContent>
                   </Tooltip>
                 </TableHead>
@@ -414,7 +431,7 @@ export default function FundsTable({
                       <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">{getEntity(a.type)}</span>
                     </TableCell>
 
-                    {/* Símbolo de mercado */}
+                    {/* Símbolo de mercado — editable en modo edición */}
                     <TableCell>
                       {isEditing ? (
                         <Input
@@ -435,7 +452,9 @@ export default function FundsTable({
                       <div className="flex flex-col items-end">
                         <span className="font-semibold">{fmt(invested)}</span>
                         {hasMovements && (
-                          <span className="text-[10px] text-muted-foreground">{(a.movements as any[]).length} mov.</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {(a.movements as any[]).length} mov.
+                          </span>
                         )}
                       </div>
                     </TableCell>
@@ -443,16 +462,16 @@ export default function FundsTable({
                     {/* Unidades */}
                     <TableCell className="text-right font-mono text-xs text-muted-foreground">
                       {isEditing
-                        ? <Input className="h-7 w-20 text-right text-xs ml-auto" type="number" value={editForm.shares}
-                            onChange={e => setEditForm({ ...editForm, shares: e.target.value })} />
+                        ? <Input className="h-7 w-20 text-right text-xs ml-auto" type="number"
+                            value={editForm.shares} onChange={e => setEditForm({ ...editForm, shares: e.target.value })} />
                         : a.shares.toFixed(4)}
                     </TableCell>
 
                     {/* Precio actual */}
                     <TableCell className="text-right font-mono text-xs text-muted-foreground">
                       {isEditing
-                        ? <Input className="h-7 w-24 text-right text-xs ml-auto" type="number" value={editForm.currentPrice}
-                            onChange={e => setEditForm({ ...editForm, currentPrice: e.target.value })} />
+                        ? <Input className="h-7 w-24 text-right text-xs ml-auto" type="number"
+                            value={editForm.currentPrice} onChange={e => setEditForm({ ...editForm, currentPrice: e.target.value })} />
                         : <span className={isUpdating && a.isin ? 'animate-pulse' : ''}>{fmt(currentPrice)}</span>}
                     </TableCell>
 
@@ -472,24 +491,30 @@ export default function FundsTable({
                       <div className="flex items-center gap-1 justify-end">
                         {isEditing ? (
                           <>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-profit" onClick={() => handleSaveEdit(a.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-profit"
+                              onClick={() => handleSaveEdit(a.id)}>
                               <Check className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingId(null)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                              onClick={() => setEditingId(null)}>
                               <X className="h-4 w-4" />
                             </Button>
                           </>
                         ) : (
                           <>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                              title="Historial de movimientos" onClick={() => setHistoryAsset(a)}>
+                            <Button variant="ghost" size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-primary"
+                              title="Historial de movimientos"
+                              onClick={() => setHistoryAssetId(a.id)}>
                               <History className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            <Button variant="ghost" size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-primary"
                               onClick={() => startEditing(a)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-loss"
+                            <Button variant="ghost" size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-loss"
                               onClick={() => onRemove(a.id)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -512,15 +537,22 @@ export default function FundsTable({
           </Table>
         </CardContent>
 
-        {/* Dialog historial */}
-        <Dialog open={historyAsset !== null} onOpenChange={isOpen => { if (!isOpen) setHistoryAsset(null); }}>
+        {/* Dialog historial — pasa el asset FRESCO (resuelto en cada render) */}
+        <Dialog
+          open={historyAssetId !== null}
+          onOpenChange={isOpen => { if (!isOpen) setHistoryAssetId(null); }}
+        >
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Historial · {historyAsset?.name}</DialogTitle></DialogHeader>
-            {historyAsset && <TransactionHistory asset={historyAsset} onInvestedChanged={() => {}} />}
+            <DialogHeader>
+              <DialogTitle>Historial · {historyAsset?.name}</DialogTitle>
+            </DialogHeader>
+            {historyAsset && (
+              <TransactionHistory asset={historyAsset} onInvestedChanged={() => {}} />
+            )}
           </DialogContent>
         </Dialog>
 
-        {/* Modal de resultados de actualización */}
+        {/* Modal resultados actualización */}
         <PriceResultsModal
           open={showResults}
           onClose={() => setShowResults(false)}
