@@ -117,7 +117,13 @@ export default function Index() {
 
           <TabsContent value="robos" className="space-y-4">
             <RoboImporter />
-            <RoboAdvisors robos={p.roboAdvisors} onAdd={p.addRoboAdvisor} onUpdate={p.updateRoboAdvisor} onRemove={p.removeRoboAdvisor} />
+            <RoboAdvisors
+              robos={p.roboAdvisors}
+              apiKey={p.apiKey}
+              onAdd={p.addRoboAdvisor}
+              onUpdate={p.updateRoboAdvisor}
+              onRemove={p.removeRoboAdvisor}
+            />
           </TabsContent>
 
           <TabsContent value="xray" className="space-y-4">
