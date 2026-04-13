@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
-import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X } from 'lucide-react';
-import { RoboAdvisor, RoboMovement, AssetClass, SectorGeo, RoboAdvisorAllocation, RoboAdvisorSectorAllocation } from '@/types/portfolio';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { Plus, Upload, Trash2, Pencil, ChartPie as PieChart, Table2, X, RefreshCw, Copy } from 'lucide-react';
+import { RoboAdvisor, RoboMovement, AssetClass, SectorGeo, RoboAdvisorAllocation, RoboAdvisorSectorAllocation, RoboPosition, Asset } from '@/types/portfolio';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { usePriceUpdater } from '@/hooks/usePriceUpdater';
 
 const ASSET_CLASSES: AssetClass[] = ['Renta Variable', 'Renta Fija', 'Monetario', 'Commodities', 'Mixto'];
 const SECTORS: SectorGeo[] = ['Global', 'EEUU', 'Europa', 'Emergentes', 'Salud', 'Tecnología', 'Infraestructuras', 'Commodities', 'Otro'];
 
 interface Props {
   robos: RoboAdvisor[];
+  apiKey: string;
   onAdd: (r: Omit<RoboAdvisor, 'id'>) => void;
   onUpdate: (id: string, updates: Partial<RoboAdvisor>) => void;
   onRemove: (id: string) => void;
@@ -24,10 +26,11 @@ function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
-export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props) {
+export default function RoboAdvisors({ robos, apiKey, onAdd, onUpdate, onRemove }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', entity: '', totalValue: '', investedValue: '' });
   const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
   const [editValue, setEditValue] = useState('');
   const [allocDialogId, setAllocDialogId] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<{ assetClass: AssetClass; weight: string }[]>([]);
@@ -38,7 +41,46 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const [editingMovIdx, setEditingMovIdx] = useState<number | null>(null);
   const [movForm, setMovForm] = useState({ date: '', description: '', amount: '', commission: '', isin: '' });
   const [addingMov, setAddingMov] = useState(false);
+  const [positionsDialogId, setPositionsDialogId] = useState<string | null>(null);
+  const [positionsDraft, setPositionsDraft] = useState<RoboPosition[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const currentPositionsRobo = positionsDialogId ? robos.find(r => r.id === positionsDialogId) : null;
+
+  useEffect(() => {
+    if (!currentPositionsRobo) {
+      setPositionsDraft([]);
+      return;
+    }
+    setPositionsDraft((currentPositionsRobo.positions || []).map(p => ({ ...p })));
+  }, [positionsDialogId, currentPositionsRobo]);
+
+  const positionAssets = useMemo<Asset[]>(() => {
+    return positionsDraft.map((p, idx) => ({
+      id: p.id || `pos-${idx}`,
+      name: p.name || p.ticker || p.isin,
+      ticker: p.ticker || p.isin,
+      isin: p.isin || p.ticker,
+      type: 'Fondos MyInvestor',
+      shares: p.shares || 0,
+      buyPrice: 0,
+      currentPrice: p.currentPrice || 0,
+    }));
+  }, [positionsDraft]);
+
+  const marketValue = positionsDraft.reduce((sum, p) => sum + ((p.shares || 0) * (p.currentPrice || 0)), 0);
+
+  const { updatePrices: updatePositionPrices, isUpdating: isUpdatingPositions, progress: positionsProgress } =
+    usePriceUpdater({
+      apiKey,
+      assets: positionAssets,
+      onUpdatePrices: (prices) => {
+        setPositionsDraft(prev => prev.map(p => {
+          const key = p.ticker || p.isin;
+          return prices[key] !== undefined ? { ...p, currentPrice: prices[key] } : p;
+        }));
+      },
+    });
 
   const handleSubmit = () => {
     if (!form.name || !form.entity || !form.totalValue) return;
@@ -56,10 +98,43 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
   const handleEditSave = (id: string) => {
     const val = parseFloat(editValue);
     if (isNaN(val)) return;
-    onUpdate(id, { totalValue: val, lastUpdated: new Date().toISOString().split('T')[0] });
+    if (!editName.trim()) {
+      toast.error('El nombre del robo-advisor es obligatorio');
+      return;
+    }
+    onUpdate(id, { name: editName.trim(), totalValue: val, lastUpdated: new Date().toISOString().split('T')[0] });
     setEditId(null);
+    setEditName('');
     setEditValue('');
     toast.success('Saldo actualizado');
+  };
+
+  const savePositions = () => {
+    if (!positionsDialogId) return;
+    onUpdate(positionsDialogId, { positions: positionsDraft });
+    toast.success('Posiciones guardadas');
+  };
+
+  const copyMarketValueToRobo = () => {
+    if (!positionsDialogId) return;
+    onUpdate(positionsDialogId, {
+      positions: positionsDraft,
+      totalValue: marketValue,
+      lastUpdated: new Date().toISOString().split('T')[0],
+    });
+    toast.success('Valor actual copiado al robo-advisor');
+  };
+
+  const addPositionRow = () => {
+    setPositionsDraft(prev => [...prev, {
+      id: crypto.randomUUID(),
+      isin: '',
+      ticker: '',
+      name: '',
+      currency: 'EUR',
+      shares: 0,
+      currentPrice: undefined,
+    }]);
   };
 
   const openAllocDialog = (robo: RoboAdvisor) => {
@@ -235,7 +310,11 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
               const isEditing = editId === r.id;
               return (
                 <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {isEditing ? (
+                      <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-8" />
+                    ) : r.name}
+                  </TableCell>
                   <TableCell className="text-right font-mono">{fmt(r.investedValue)}</TableCell>
                   <TableCell className="text-right font-mono">
                     {isEditing ? (
@@ -270,7 +349,10 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
                       <Button variant="ghost" size="icon" onClick={() => openAllocDialog(r)} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar Distribución">
                         <PieChart className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => { setEditId(r.id); setEditValue(r.totalValue.toString()); }} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar Saldo">
+                      <Button variant="ghost" size="icon" onClick={() => setPositionsDialogId(r.id)} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Posición actual">
+                        <Table2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setEditId(r.id); setEditName(r.name); setEditValue(r.totalValue.toString()); }} className="h-8 w-8 text-muted-foreground hover:text-primary" title="Editar nombre y saldo">
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => onRemove(r.id)} className="h-8 w-8 text-muted-foreground hover:text-loss">
@@ -417,10 +499,130 @@ export default function RoboAdvisors({ robos, onAdd, onUpdate, onRemove }: Props
           </DialogContent>
         </Dialog>
 
-        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos sincronizados con Supabase · 📊 Distribución · ✏️ Editar Saldo</p>
+        {/* Posición actual del robo-advisor */}
+        <Dialog open={!!positionsDialogId} onOpenChange={open => !open && setPositionsDialogId(null)}>
+          <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Table2 className="h-5 w-5 text-primary" />
+                Posición actual — {currentPositionsRobo?.name}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm text-muted-foreground">
+                  Valor de mercado total: <span className="font-semibold text-foreground font-mono">{fmt(marketValue)}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="gap-1" onClick={addPositionRow}>
+                    <Plus className="h-4 w-4" /> Añadir línea
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1" onClick={updatePositionPrices} disabled={isUpdatingPositions || positionsDraft.length === 0}>
+                    <RefreshCw className={`h-4 w-4 ${isUpdatingPositions ? 'animate-spin' : ''}`} />
+                    {isUpdatingPositions ? `Actualizando… ${positionsProgress}%` : 'Actualizar precios'}
+                  </Button>
+                  <Button size="sm" variant="secondary" className="gap-1" onClick={copyMarketValueToRobo}>
+                    <Copy className="h-4 w-4" /> Copiar a Valor Actual
+                  </Button>
+                  <Button size="sm" onClick={savePositions}>Guardar posiciones</Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-border/50 rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ISIN</TableHead>
+                      <TableHead>Ticker</TableHead>
+                      <TableHead>Nombre fondo</TableHead>
+                      <TableHead>Divisa</TableHead>
+                      <TableHead className="text-right">Nº títulos</TableHead>
+                      <TableHead className="text-right">Precio actual</TableHead>
+                      <TableHead className="text-right">Valor mercado</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {positionsDraft.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          Aún no hay posiciones registradas.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {positionsDraft.map((p, idx) => {
+                      const rowValue = (p.shares || 0) * (p.currentPrice || 0);
+                      return (
+                        <TableRow key={p.id || idx}>
+                          <TableCell>
+                            <Input
+                              className="h-8 text-xs font-mono uppercase"
+                              value={p.isin}
+                              onChange={e => setPositionsDraft(prev => prev.map((x, i) => i === idx ? { ...x, isin: e.target.value.toUpperCase() } : x))}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              className="h-8 text-xs font-mono uppercase"
+                              value={p.ticker}
+                              onChange={e => setPositionsDraft(prev => prev.map((x, i) => i === idx ? { ...x, ticker: e.target.value.toUpperCase() } : x))}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              className="h-8 text-xs"
+                              value={p.name}
+                              onChange={e => setPositionsDraft(prev => prev.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              className="h-8 text-xs font-mono uppercase w-20"
+                              value={p.currency}
+                              onChange={e => setPositionsDraft(prev => prev.map((x, i) => i === idx ? { ...x, currency: e.target.value.toUpperCase() } : x))}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              className="h-8 text-xs text-right"
+                              value={p.shares}
+                              onChange={e => setPositionsDraft(prev => prev.map((x, i) => i === idx ? { ...x, shares: parseFloat(e.target.value || '0') } : x))}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              className="h-8 text-xs text-right"
+                              value={p.currentPrice ?? ''}
+                              placeholder="—"
+                              onChange={e => setPositionsDraft(prev => prev.map((x, i) => i === idx ? { ...x, currentPrice: e.target.value === '' ? undefined : parseFloat(e.target.value) } : x))}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs">{fmt(rowValue)}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-loss"
+                              onClick={() => setPositionsDraft(prev => prev.filter((_, i) => i !== idx))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <p className="text-xs text-muted-foreground mt-3">📋 Movimientos sincronizados con Supabase · 📊 Distribución · 📌 Posición actual · ✏️ Editar nombre/saldo</p>
       </CardContent>
     </Card>
   );
 }
-
-
