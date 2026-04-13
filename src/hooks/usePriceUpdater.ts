@@ -52,6 +52,10 @@ interface Options {
   onUpdatePrices: (prices: Record<string, number>, symbols: Record<string, string>) => void;
 }
 
+function getIsinCandidate(asset: Asset): string {
+  return (asset.isin || asset.ticker || '').trim().toUpperCase();
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -104,8 +108,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
     const toUpdate = [
       ...new Map(
         assets
-          .filter(a => fundTypes.has(a.type) && a.isin && a.isin.trim() && a.shares > 0)
-          .map(a => [a.isin!, a])
+          .filter(a => fundTypes.has(a.type) && getIsinCandidate(a) && a.shares > 0)
+          .map(a => [getIsinCandidate(a), a])
       ).values(),
     ];
 
@@ -133,7 +137,7 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
         }
 
         const asset    = toUpdate[i];
-        const isin     = asset.isin!;
+        const isin     = getIsinCandidate(asset);
         const name     = asset.name || isin;
         const savedSym = (asset as any).marketSymbol as string | undefined;
 
