@@ -103,7 +103,16 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="fondos" className="space-y-4">
-            <FundsTable assets={p.assets} onAdd={p.addAsset} onRemove={p.removeAsset} onUpdate={p.updateAsset} getByIsin={p.getByIsin} upsertIsin={p.upsertIsin} />
+            // <FundsTable
+//   assets={p.assets}
+//   onAdd={p.addAsset}
+//   onRemove={p.removeAsset}
+//   onUpdate={p.updateAsset}
+//   onUpdatePrices={p.updatePrices}   ← NUEVA PROP
+//   apiKey={p.apiKey}                 ← NUEVA PROP
+//   getByIsin={p.getByIsin}
+//   upsertIsin={p.upsertIsin}
+// />
           </TabsContent>
 
           <TabsContent value="robos" className="space-y-4">
