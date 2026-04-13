@@ -195,7 +195,7 @@ export default function FundsTable({
 
   // Fondos actualizables (solo tipos fondo, con ISIN)
   const updatableCount = assets.filter(
-    a => ['Fondos MyInvestor', 'Fondos BBK'].includes(a.type) && a.isin && a.shares > 0
+    a => ['Fondos MyInvestor', 'Fondos BBK'].includes(a.type) && (a.isin || a.ticker) && a.shares > 0
   ).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -290,7 +290,7 @@ export default function FundsTable({
                 {!apiKey
                   ? '⚠ Configura tu Alpha Vantage API Key en Configuración'
                   : updatableCount === 0
-                  ? 'No hay fondos MyInvestor/BBK con ISIN'
+                  ? 'No hay fondos MyInvestor/BBK con ISIN o ticker'
                   : `Actualiza ${updatableCount} fondo${updatableCount !== 1 ? 's' : ''} · Fondos con símbolo guardado usan 1 llamada en vez de 2`}
               </TooltipContent>
             </Tooltip>
