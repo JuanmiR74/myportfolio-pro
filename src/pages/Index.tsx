@@ -108,8 +108,8 @@ export default function Index() {
    onAdd={p.addAsset}
    onRemove={p.removeAsset}
    onUpdate={p.updateAsset}
-   onUpdatePrices={p.updatePrices}   //← NUEVA PROP
-   apiKey={p.apiKey}                 //← NUEVA PROP
+   onUpdatePrices={p.updatePrices}   
+   apiKey={p.apiKey}                 
    getByIsin={p.getByIsin}
    upsertIsin={p.upsertIsin}
  />
