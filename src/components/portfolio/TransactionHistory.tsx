@@ -1,9 +1,8 @@
 // =============================================================================
-// TransactionHistory.tsx — Historial de movimientos de un Asset
-//
-// MIGRACIÓN: Ya NO usa useTransactions ni la tabla `transactions`.
-// Lee y escribe directamente en asset.movements dentro del JSONB
-// a través de usePortfolio (addMovement / removeMovement).
+// TransactionHistory.tsx
+// FIX: usa addMovement/removeMovement de usePortfolio (no useTransactions).
+// La causa del error "r is not a function" era llamar a addMovement que no
+// existía en el hook. Ahora está correctamente exportada.
 // =============================================================================
 
 import { useState } from 'react';
@@ -11,49 +10,65 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { usePortfolio, calcInvestedFromMovements } from '@/hooks/usePortfolio';
-import type { Asset, AssetMovement, AssetMovementType } from '@/types/portfolio';
+import type { Asset, RoboMovement } from '@/types/portfolio';
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 function fmt(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
-const MOVEMENT_LABELS: Record<AssetMovementType, string> = {
-  aportacion: 'Aportación',
-  retirada:   'Retirada',
-  dividendo:  'Dividendo',
-  comision:   'Comisión',
-  otro:       'Otro',
+type MovementCategory = RoboMovement['category'];
+
+const CATEGORY_LABELS: Record<MovementCategory, string> = {
+  aportacion:   'Aportación',
+  comision:     'Comisión',
+  fondo:        'Fondo',
+  intereses:    'Intereses',
+  otro:         'Otro',
 };
 
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 interface Props {
-  /** Asset completo (ya disponible en el estado del hook) */
-  asset: Asset;
-  /** Callback opcional para notificar al padre del nuevo total invertido */
-  onInvestedChanged?: (amount: number) => void;
+  asset:               Asset;
+  onInvestedChanged?:  (amount: number) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Componente
+// ---------------------------------------------------------------------------
 export function TransactionHistory({ asset, onInvestedChanged }: Props) {
+  // Usar directamente el hook — addMovement y removeMovement ya existen
   const { addMovement, removeMovement } = usePortfolio();
+
   const [showForm, setShowForm] = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [form, setForm] = useState({
     date:        new Date().toISOString().split('T')[0],
-    type:        'aportacion' as AssetMovementType,
+    category:    'aportacion' as MovementCategory,
     amount:      '',
     description: '',
   });
 
-  const movements = asset.movements || [];
+  const movements = (asset.movements || []) as RoboMovement[];
   const totalInvested = calcInvestedFromMovements(movements);
 
+  // ── Añadir movimiento ─────────────────────────────────────────────────────
   const handleAdd = async () => {
     const amount = parseFloat(form.amount);
     if (!form.date || isNaN(amount) || amount <= 0) {
-      toast.error('Introduce una fecha y un importe válido (> 0)');
+      toast.error('Introduce una fecha y un importe válido (mayor que 0)');
       return;
     }
 
@@ -61,26 +76,36 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
     try {
       addMovement(asset.id, {
         date:        form.date,
-        type:        form.type,
+        description: form.description || CATEGORY_LABELS[form.category],
         amount,
-        description: form.description || undefined,
+        commission:  form.category === 'comision' ? amount : 0,
+        category:    form.category,
       });
 
-      // Notificar al padre con el nuevo total
-      const newMovements: AssetMovement[] = [
-        ...movements,
-        { id: 'tmp', date: form.date, type: form.type, amount, description: form.description || undefined },
-      ];
-      onInvestedChanged?.(calcInvestedFromMovements(newMovements));
+      // Notificar al padre con el nuevo total estimado
+      const optimisticTotal =
+        form.category === 'aportacion' ? totalInvested + amount
+        : form.category === 'comision' ? totalInvested - amount
+        : totalInvested;
+      onInvestedChanged?.(optimisticTotal);
 
-      setForm({ date: new Date().toISOString().split('T')[0], type: 'aportacion', amount: '', description: '' });
+      setForm({
+        date:        new Date().toISOString().split('T')[0],
+        category:    'aportacion',
+        amount:      '',
+        description: '',
+      });
       setShowForm(false);
       toast.success('Movimiento añadido');
+    } catch (err) {
+      toast.error('Error al añadir el movimiento');
+      console.error(err);
     } finally {
       setSaving(false);
     }
   };
 
+  // ── Eliminar movimiento ───────────────────────────────────────────────────
   const handleRemove = (movementId: string) => {
     removeMovement(asset.id, movementId);
     const remaining = movements.filter(m => m.id !== movementId);
@@ -88,9 +113,10 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
     toast.success('Movimiento eliminado');
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* Total y botón añadir */}
+      {/* Cabecera: total y botón añadir */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Capital invertido</p>
@@ -122,18 +148,18 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
               {[...movements]
                 .sort((a, b) => b.date.localeCompare(a.date))
                 .map(m => {
-                  const isIn  = m.type === 'aportacion' || m.type === 'dividendo';
-                  const isOut = m.type === 'retirada'   || m.type === 'comision';
+                  const isIn  = m.category === 'aportacion' || m.category === 'intereses';
+                  const isOut = m.category === 'comision';
                   return (
                     <tr key={m.id} className="border-t border-border/30 hover:bg-muted/20">
                       <td className="px-3 py-2 font-mono text-xs">{m.date}</td>
                       <td className="px-3 py-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          isIn  ? 'bg-green-500/10 text-green-500' :
-                          isOut ? 'bg-red-500/10   text-red-500'   :
-                                  'bg-muted         text-muted-foreground'
+                          isIn  ? 'bg-green-500/10 text-green-500'
+                          : isOut ? 'bg-red-500/10 text-red-500'
+                          : 'bg-muted text-muted-foreground'
                         }`}>
-                          {MOVEMENT_LABELS[m.type]}
+                          {CATEGORY_LABELS[m.category] ?? m.category}
                         </span>
                       </td>
                       <td className={`px-3 py-2 text-right font-mono font-semibold ${
@@ -161,8 +187,8 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
         </div>
       )}
 
-      {/* Dialog: añadir movimiento */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      {/* Dialog añadir movimiento */}
+      <Dialog open={showForm} onOpenChange={open => { if (!open) setShowForm(false); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Añadir movimiento</DialogTitle>
@@ -180,18 +206,19 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
               <div>
                 <Label>Tipo</Label>
                 <Select
-                  value={form.type}
-                  onValueChange={v => setForm(f => ({ ...f, type: v as AssetMovementType }))}
+                  value={form.category}
+                  onValueChange={v => setForm(f => ({ ...f, category: v as MovementCategory }))}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {(Object.entries(MOVEMENT_LABELS) as [AssetMovementType, string][]).map(([k, v]) => (
+                    {(Object.entries(CATEGORY_LABELS) as [MovementCategory, string][]).map(([k, v]) => (
                       <SelectItem key={k} value={k}>{v}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
             <div>
               <Label>Importe (€)</Label>
               <Input
@@ -203,18 +230,22 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
                 onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               />
             </div>
+
             <div>
               <Label>Descripción <span className="text-muted-foreground">(opcional)</span></Label>
               <Input
-                placeholder="Aportación mensual..."
+                placeholder="Aportación mensual…"
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               />
             </div>
+
             <div className="flex gap-2 justify-end pt-1">
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setShowForm(false)} disabled={saving}>
+                Cancelar
+              </Button>
               <Button onClick={handleAdd} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
+                {saving ? 'Guardando…' : 'Guardar'}
               </Button>
             </div>
           </div>
