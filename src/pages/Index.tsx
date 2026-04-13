@@ -130,8 +130,8 @@ export default function Index() {
               assets={p.assets}
               roboAdvisors={p.roboAdvisors}
               isinLibrary={mergedIsinLibrary}
-              apiKey={p.apiKey}
               onUpdateIsinClassification={isinLib.updateIsinClassification}
+              getByIsin={p.getByIsin}
             />
           </TabsContent>
 

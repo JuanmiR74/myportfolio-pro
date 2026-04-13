@@ -8,7 +8,6 @@ import { Pencil } from 'lucide-react';
 import { Asset, RoboAdvisor, ThreeDimensionClassification, IsinEntry } from '@/types/portfolio';
 import ThreeDimEditor from '@/components/portfolio/ThreeDimEditor';
 import { calcInvestedFromMovements } from '@/hooks/usePortfolio';
-import { toast } from 'sonner';
 
 interface DataItem { name: string; value: number; fill: string; }
 
@@ -30,8 +29,8 @@ interface Props {
   assets: Asset[];
   roboAdvisors: RoboAdvisor[];
   isinLibrary: IsinEntry[];
-  apiKey: string;
   onUpdateIsinClassification: (isin: string, td: ThreeDimensionClassification) => void;
+  getByIsin?: (isin: string) => IsinEntry | undefined;
 }
 
 function fmt(n: number) {
@@ -146,7 +145,7 @@ const ACP_COLORS: Record<string, string> = {
   'Sin clasificar': 'hsl(0, 0%, 50%)',
 };
 
-export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isinLibrary, apiKey, onUpdateIsinClassification }: Props) {
+export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isinLibrary, onUpdateIsinClassification, getByIsin }: Props) {
   const [editingItem, setEditingItem] = useState<XRayRow | null>(null);
 
   const isinLookup = useMemo(() => {
@@ -258,56 +257,16 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
     setEditingItem(null);
   };
 
-  const getAutoClassification = async () => {
-    if (!editingItem) return null;
+  const getAutoClassification = () => {
+    if (!editingItem || !getByIsin) return null;
     const key = (editingItem.isin || editingItem.ticker).toUpperCase();
-
-    const cached = isinLookup.get(key);
-    if (cached?.geography?.length || cached?.sectors?.length || cached?.assetClassPro?.length) {
-      return {
-        geography: cached.geography as any,
-        sectors: cached.sectors as any,
-        assetClassPro: cached.assetClassPro as any,
-      } as ThreeDimensionClassification;
-    }
-
-    if (!apiKey?.trim()) {
-      toast.error('Autoclasificación: falta API key de Alpha Vantage en Configuración');
-      return null;
-    }
-
-    try {
-      const symbol = editingItem.ticker || editingItem.isin;
-      if (!symbol) return null;
-      const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data?.Note || data?.Information) {
-        toast.error(`Autoclasificación API: ${data.Note || data.Information}`);
-        return null;
-      }
-
-      const sector = (data?.Sector || '').toString();
-      if (!sector) {
-        toast.error(`Autoclasificación API: sin datos de sector para ${symbol}`);
-        return null;
-      }
-
-      const sectorMap: Record<string, string> = {
-        Technology: 'Tecnología', Healthcare: 'Salud', Financials: 'Financiero', Energy: 'Energía',
-        Consumer: 'Consumo', Industrials: 'Industria', RealEstate: 'Inmobiliario', Utilities: 'Infraestructuras',
-      };
-      const normalizedSector = Object.entries(sectorMap).find(([k]) => sector.toLowerCase().includes(k.toLowerCase()))?.[1] || 'Otro';
-      return {
-        geography: [{ name: 'Global' as any, weight: 100 }],
-        sectors: [{ name: normalizedSector as any, weight: 100 }],
-        assetClassPro: [{ name: 'RV - Blend' as any, weight: 100 }],
-      };
-    } catch (err: any) {
-      toast.error(`Autoclasificación API: error de red (${err?.message || 'desconocido'})`);
-      return null;
-    }
+    const entry = getByIsin(key);
+    if (!entry) return null;
+    return {
+      geography: entry.geography as any,
+      sectors: entry.sectors as any,
+      assetClassPro: entry.assetClassPro as any,
+    } as ThreeDimensionClassification;
   };
 
   return (
