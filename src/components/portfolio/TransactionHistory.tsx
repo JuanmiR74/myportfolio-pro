@@ -1,8 +1,11 @@
 // =============================================================================
 // TransactionHistory.tsx
-// FIX: usa addMovement/removeMovement de usePortfolio (no useTransactions).
-// La causa del error "r is not a function" era llamar a addMovement que no
-// existía en el hook. Ahora está correctamente exportada.
+//
+// FIX refresco: en lugar de leer asset.movements de la prop (que es un objeto
+// congelado en el momento de abrir el dialog), se lee directamente del estado
+// global de usePortfolio buscando el asset por id. Así cada vez que
+// addMovement/removeMovement muta el estado, el componente ve los datos frescos
+// sin necesidad de cerrar y reabrir el dialog.
 // =============================================================================
 
 import { useState } from 'react';
@@ -30,27 +33,33 @@ function fmt(n: number) {
 type MovementCategory = RoboMovement['category'];
 
 const CATEGORY_LABELS: Record<MovementCategory, string> = {
-  aportacion:   'Aportación',
-  comision:     'Comisión',
-  fondo:        'Fondo',
-  intereses:    'Intereses',
-  otro:         'Otro',
+  aportacion: 'Aportación',
+  comision:   'Comisión',
+  fondo:      'Fondo',
+  intereses:  'Intereses',
+  otro:       'Otro',
 };
 
 // ---------------------------------------------------------------------------
-// Props
+// Props — solo necesitamos el id del asset, no el objeto completo congelado
 // ---------------------------------------------------------------------------
 interface Props {
-  asset:               Asset;
-  onInvestedChanged?:  (amount: number) => void;
+  asset:              Asset;          // usado solo para id y name inicial
+  onInvestedChanged?: (amount: number) => void;
 }
 
 // ---------------------------------------------------------------------------
 // Componente
 // ---------------------------------------------------------------------------
 export function TransactionHistory({ asset, onInvestedChanged }: Props) {
-  // Usar directamente el hook — addMovement y removeMovement ya existen
-  const { addMovement, removeMovement } = usePortfolio();
+  const portfolio = usePortfolio();
+
+  // ── Leer el asset FRESCO del estado global en cada render ─────────────────
+  // Esto es el fix del refresco: no usamos asset.movements de la prop,
+  // sino que buscamos el asset actualizado en el estado vivo del hook.
+  const liveAsset   = portfolio.assets.find(a => a.id === asset.id) ?? asset;
+  const movements   = (liveAsset.movements || []) as RoboMovement[];
+  const totalInvested = calcInvestedFromMovements(movements);
 
   const [showForm, setShowForm] = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -60,9 +69,6 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
     amount:      '',
     description: '',
   });
-
-  const movements = (asset.movements || []) as RoboMovement[];
-  const totalInvested = calcInvestedFromMovements(movements);
 
   // ── Añadir movimiento ─────────────────────────────────────────────────────
   const handleAdd = async () => {
@@ -74,21 +80,22 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
 
     setSaving(true);
     try {
-      addMovement(asset.id, {
+      portfolio.addMovement(asset.id, {
         date:        form.date,
-        description: form.description || CATEGORY_LABELS[form.category],
+        description: form.description.trim() || CATEGORY_LABELS[form.category],
         amount,
         commission:  form.category === 'comision' ? amount : 0,
         category:    form.category,
       });
 
-      // Notificar al padre con el nuevo total estimado
-      const optimisticTotal =
+      // Calcular nuevo total optimista para notificar al padre si lo necesita
+      const newTotal =
         form.category === 'aportacion' ? totalInvested + amount
         : form.category === 'comision' ? totalInvested - amount
         : totalInvested;
-      onInvestedChanged?.(optimisticTotal);
+      onInvestedChanged?.(newTotal);
 
+      // Reset form
       setForm({
         date:        new Date().toISOString().split('T')[0],
         category:    'aportacion',
@@ -107,7 +114,7 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
 
   // ── Eliminar movimiento ───────────────────────────────────────────────────
   const handleRemove = (movementId: string) => {
-    removeMovement(asset.id, movementId);
+    portfolio.removeMovement(asset.id, movementId);
     const remaining = movements.filter(m => m.id !== movementId);
     onInvestedChanged?.(calcInvestedFromMovements(remaining));
     toast.success('Movimiento eliminado');
@@ -116,7 +123,7 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* Cabecera: total y botón añadir */}
+      {/* Cabecera */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Capital invertido</p>
@@ -187,11 +194,11 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
         </div>
       )}
 
-      {/* Dialog añadir movimiento */}
+      {/* Dialog añadir */}
       <Dialog open={showForm} onOpenChange={open => { if (!open) setShowForm(false); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Añadir movimiento</DialogTitle>
+            <DialogTitle>Añadir movimiento · {liveAsset.name}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 mt-2">
             <div className="grid grid-cols-2 gap-3">
@@ -218,19 +225,14 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
                 </Select>
               </div>
             </div>
-
             <div>
               <Label>Importe (€)</Label>
               <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="5000.00"
+                type="number" min="0" step="0.01" placeholder="5000.00"
                 value={form.amount}
                 onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               />
             </div>
-
             <div>
               <Label>Descripción <span className="text-muted-foreground">(opcional)</span></Label>
               <Input
@@ -239,7 +241,6 @@ export function TransactionHistory({ asset, onInvestedChanged }: Props) {
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               />
             </div>
-
             <div className="flex gap-2 justify-end pt-1">
               <Button variant="outline" onClick={() => setShowForm(false)} disabled={saving}>
                 Cancelar
