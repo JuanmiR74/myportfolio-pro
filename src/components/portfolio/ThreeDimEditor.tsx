@@ -24,6 +24,7 @@ interface Props {
   assetName: string;
   initial?: ThreeDimensionClassification;
   onSave: (td: ThreeDimensionClassification) => void;
+  onAutoClassify?: () => ThreeDimensionClassification | null;
   children?: React.ReactNode;
 }
 
@@ -62,7 +63,7 @@ function DimensionSection<T extends string>({ label, options, rows, setRows, col
   );
 }
 
-export default function ThreeDimEditor({ open, onClose, assetName, initial, onSave, children }: Props) {
+export default function ThreeDimEditor({ open, onClose, assetName, initial, onSave, onAutoClassify, children }: Props) {
   const [geo, setGeo] = useState<EditRow[]>(
     initial?.geography?.map(g => ({ name: g.name, weight: g.weight.toString() })) || [{ name: 'Global', weight: '100' }]
   );
@@ -92,6 +93,19 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
     toast.success('Clasificación actualizada');
   };
 
+  const handleAutoClassify = () => {
+    if (!onAutoClassify) return;
+    const auto = onAutoClassify();
+    if (!auto) {
+      toast.error('No se pudo obtener clasificación automática');
+      return;
+    }
+    setGeo(auto.geography.map(g => ({ name: g.name, weight: g.weight.toString() })));
+    setSec(auto.sectors.map(s => ({ name: s.name, weight: s.weight.toString() })));
+    setAcp(auto.assetClassPro.map(a => ({ name: a.name, weight: a.weight.toString() })));
+    toast.success('Clasificación cargada desde API/librería');
+  };
+
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -106,6 +120,9 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
         </div>
         {children}
         <DialogFooter>
+          {onAutoClassify && (
+            <Button variant="secondary" onClick={handleAutoClassify}>Autoclasificar (API)</Button>
+          )}
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave}>Guardar</Button>
         </DialogFooter>
