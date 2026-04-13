@@ -5,23 +5,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Pencil } from 'lucide-react';
-import { Asset, RoboAdvisor, ThreeDimensionClassification, RoboSubFund, IsinEntry } from '@/types/portfolio';
-import { RoboConstituent } from '@/hooks/useRoboConstituents';
+import { Asset, RoboAdvisor, ThreeDimensionClassification, IsinEntry } from '@/types/portfolio';
 import ThreeDimEditor from '@/components/portfolio/ThreeDimEditor';
-import SubFundsEditor from '@/components/portfolio/SubFundsEditor';
+import { calcInvestedFromMovements } from '@/hooks/usePortfolio';
 
 interface DataItem { name: string; value: number; fill: string; }
 
-interface XRayAsset {
+interface XRayRow {
   id: string;
   name: string;
   isin: string;
-  origin: 'Fondo Individual' | 'Robo-advisor';
+  ticker: string;
+  origin: 'Fondos' | 'RoboAdvisor-Posiciones';
   entity: string;
-  value: number;
+  invested: number;
+  currentValue: number;
   weightPct: number;
   threeDim?: ThreeDimensionClassification;
-  sourceType: 'asset' | 'robo';
 }
 
 interface Props {
@@ -29,11 +29,8 @@ interface Props {
   assets: Asset[];
   roboAdvisors: RoboAdvisor[];
   isinLibrary: IsinEntry[];
-  roboConstituents: RoboConstituent[];
   onUpdateIsinClassification: (isin: string, td: ThreeDimensionClassification) => void;
-  onUpdateRoboSubFunds: (id: string, subFunds: RoboSubFund[]) => void;
   getByIsin?: (isin: string) => IsinEntry | undefined;
-  upsertIsin?: (entry: Omit<IsinEntry, 'id'> & { id?: string }) => void;
 }
 
 function fmt(n: number) {
@@ -148,86 +145,95 @@ const ACP_COLORS: Record<string, string> = {
   'Sin clasificar': 'hsl(0, 0%, 50%)',
 };
 
-export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isinLibrary, roboConstituents, onUpdateIsinClassification, onUpdateRoboSubFunds, getByIsin, upsertIsin }: Props) {
-  const [editingItem, setEditingItem] = useState<XRayAsset | null>(null);
+export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isinLibrary, onUpdateIsinClassification, getByIsin }: Props) {
+  const [editingItem, setEditingItem] = useState<XRayRow | null>(null);
 
-  // Build a lookup: isin -> IsinEntry
   const isinLookup = useMemo(() => {
     const map = new Map<string, IsinEntry>();
-    isinLibrary.forEach(e => map.set(e.isin, e));
+    isinLibrary.forEach(e => map.set(e.isin.toUpperCase(), e));
     return map;
   }, [isinLibrary]);
 
-  // Compute X-Ray from isin_library as source of truth
+  const xrayRows = useMemo(() => {
+    const rows: XRayRow[] = [];
+
+    const includeFunds = entityFilter === 'all' || entityFilter === 'MyInvestor' || entityFilter === 'BBK';
+    const includeRobos = entityFilter === 'all' || entityFilter === 'Robo-Advisors' || entityFilter === 'MyInvestor' || entityFilter === 'BBK';
+
+    if (includeFunds) {
+      assets
+        .filter(a => {
+          if (!['Fondos MyInvestor', 'Fondos BBK'].includes(a.type)) return false;
+          if (entityFilter === 'MyInvestor') return a.type === 'Fondos MyInvestor';
+          if (entityFilter === 'BBK') return a.type === 'Fondos BBK';
+          return true;
+        })
+        .forEach(a => {
+          const isinKey = (a.isin || a.ticker || '').toUpperCase();
+          const lib = isinLookup.get(isinKey);
+          rows.push({
+            id: a.id,
+            name: a.name,
+            isin: isinKey,
+            ticker: (a.ticker || '').toUpperCase(),
+            origin: 'Fondos',
+            entity: a.type === 'Fondos MyInvestor' ? 'MyInvestor' : 'BBK',
+            invested: a.movements?.length ? calcInvestedFromMovements(a.movements as any) : a.buyPrice,
+            currentValue: (a.shares || 0) * (a.currentPrice || 0),
+            weightPct: 0,
+            threeDim: lib ? { geography: lib.geography as any, sectors: lib.sectors as any, assetClassPro: lib.assetClassPro as any } : a.threeDim,
+          });
+        });
+    }
+
+    if (includeRobos) {
+      roboAdvisors
+        .filter(r => {
+          if (entityFilter === 'MyInvestor') return /myinvestor/i.test(r.entity || r.name);
+          if (entityFilter === 'BBK') return /bbk/i.test(r.entity || r.name);
+          return true;
+        })
+        .forEach(r => {
+          (r.positions || []).forEach((p, idx) => {
+            const isinKey = (p.isin || p.ticker || '').toUpperCase();
+            const ticker = (p.ticker || '').toUpperCase();
+            const lib = isinLookup.get(isinKey);
+            rows.push({
+              id: `${r.id}-${p.id || idx}`,
+              name: p.name || ticker || isinKey,
+              isin: isinKey,
+              ticker,
+              origin: 'RoboAdvisor-Posiciones',
+              entity: r.entity || r.name,
+              invested: 0,
+              currentValue: (p.shares || 0) * (p.currentPrice || 0),
+              weightPct: 0,
+              threeDim: lib ? { geography: lib.geography as any, sectors: lib.sectors as any, assetClassPro: lib.assetClassPro as any } : undefined,
+            });
+          });
+        });
+    }
+
+    const total = rows.reduce((s, r) => s + r.currentValue, 0);
+    return rows
+      .map(r => ({ ...r, weightPct: total > 0 ? (r.currentValue / total) * 100 : 0 }))
+      .sort((a, b) => b.currentValue - a.currentValue);
+  }, [assets, roboAdvisors, entityFilter, isinLookup]);
+
   const { geography, sector, assetClassPro } = useMemo(() => {
     const geoTotals: Record<string, number> = {};
     const sectorTotals: Record<string, number> = {};
     const acpTotals: Record<string, number> = {};
 
-    const addDimension = (value: number, entry: IsinEntry | undefined) => {
-      if (entry?.geography?.length) {
-        entry.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
-      } else { geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value; }
-      if (entry?.sectors?.length) {
-        entry.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
-      } else { sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value; }
-      if (entry?.assetClassPro?.length) {
-        entry.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
-      } else { acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value; }
-    };
-
-    // Filter assets
-    const filteredAssets = entityFilter === 'all' ? assets
-      : entityFilter === 'Robo-Advisors' ? []
-      : assets.filter(a => a.entity === entityFilter || a.type === `Fondos ${entityFilter}`);
-
-    filteredAssets.forEach(a => {
-      const value = a.shares * a.currentPrice;
-      const isinKey = a.isin || a.ticker;
-      const entry = isinLookup.get(isinKey);
-      addDimension(value, entry);
-    });
-
-    // Filter robos
-    const filteredRobos = (entityFilter === 'all' || entityFilter === 'Robo-Advisors') ? roboAdvisors : [];
-    filteredRobos.forEach(r => {
-      const roboConsts = roboConstituents.filter(c => c.roboId === r.id);
-      if (roboConsts.length > 0) {
-        // Granular: each constituent weighted
-        roboConsts.forEach(c => {
-          const constValue = r.totalValue * c.weightPercentage / 100;
-          const entry = isinLookup.get(c.isin);
-          addDimension(constValue, entry);
-        });
-      } else if (r.subFunds && r.subFunds.length > 0) {
-        // Fallback to subFunds
-        r.subFunds.forEach(sf => {
-          const sfValue = r.totalValue * sf.weightPct / 100;
-          const entry = isinLookup.get(sf.isin);
-          if (entry) {
-            addDimension(sfValue, entry);
-          } else {
-            // Use subFund's own threeDim
-            const td = sf.threeDim;
-            if (td?.geography?.length) td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + sfValue * g.weight / 100; });
-            else geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + sfValue;
-            if (td?.sectors?.length) td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + sfValue * s.weight / 100; });
-            else sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + sfValue;
-            if (td?.assetClassPro?.length) td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + sfValue * ac.weight / 100; });
-            else acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + sfValue;
-          }
-        });
-      } else {
-        // Fallback to robo-level threeDim
-        const td = r.threeDim;
-        const value = r.totalValue;
-        if (td?.geography?.length) td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
-        else geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value;
-        if (td?.sectors?.length) td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
-        else sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value;
-        if (td?.assetClassPro?.length) td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
-        else acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value;
-      }
+    xrayRows.forEach(row => {
+      const value = row.currentValue;
+      const td = row.threeDim;
+      if (td?.geography?.length) td.geography.forEach(g => { geoTotals[g.name] = (geoTotals[g.name] || 0) + value * g.weight / 100; });
+      else geoTotals['Sin clasificar'] = (geoTotals['Sin clasificar'] || 0) + value;
+      if (td?.sectors?.length) td.sectors.forEach(s => { sectorTotals[s.name] = (sectorTotals[s.name] || 0) + value * s.weight / 100; });
+      else sectorTotals['Sin clasificar'] = (sectorTotals['Sin clasificar'] || 0) + value;
+      if (td?.assetClassPro?.length) td.assetClassPro.forEach(ac => { acpTotals[ac.name] = (acpTotals[ac.name] || 0) + value * ac.weight / 100; });
+      else acpTotals['Sin clasificar'] = (acpTotals['Sin clasificar'] || 0) + value;
     });
 
     const toItems = (totals: Record<string, number>, colors: Record<string, string>) =>
@@ -238,60 +244,36 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
       sector: toItems(sectorTotals, SECTOR_COLORS),
       assetClassPro: toItems(acpTotals, ACP_COLORS),
     };
-  }, [assets, roboAdvisors, roboConstituents, isinLookup, entityFilter]);
-
-  const xrayAssets = useMemo(() => {
-    const items: XRayAsset[] = [];
-    const filteredAssets = entityFilter === 'all' ? assets
-      : entityFilter === 'Robo-Advisors' ? []
-      : assets.filter(a => a.entity === entityFilter || a.type === `Fondos ${entityFilter}`);
-
-    filteredAssets.forEach(a => {
-      const isinKey = a.isin || a.ticker;
-      const entry = isinLookup.get(isinKey);
-      items.push({
-        id: a.id, name: a.name, isin: isinKey, origin: 'Fondo Individual',
-        entity: a.entity || a.type.replace('Fondos ', ''), value: a.shares * a.currentPrice,
-        weightPct: 0, threeDim: entry ? { geography: entry.geography as any, sectors: entry.sectors as any, assetClassPro: entry.assetClassPro as any } : a.threeDim, sourceType: 'asset',
-      });
-    });
-
-    const filteredRobos = (entityFilter === 'all' || entityFilter === 'Robo-Advisors') ? roboAdvisors : [];
-    filteredRobos.forEach(r => {
-      const entry = isinLookup.get(r.id); // robos don't have ISIN directly
-      items.push({
-        id: r.id, name: r.name, isin: '—', origin: 'Robo-advisor',
-        entity: r.entity || r.name.split(' - ')[0] || r.name, value: r.totalValue,
-        weightPct: 0, threeDim: r.threeDim, sourceType: 'robo',
-      });
-    });
-
-    const totalValue = items.reduce((s, i) => s + i.value, 0);
-    items.forEach(i => { i.weightPct = totalValue > 0 ? (i.value / totalValue) * 100 : 0; });
-    return items.sort((a, b) => b.value - a.value);
-  }, [assets, roboAdvisors, entityFilter, isinLookup]);
+  }, [xrayRows]);
 
   const filterLabel = entityFilter === 'all' ? 'Cartera Global' : entityFilter;
   const hasDim = (td?: ThreeDimensionClassification) => td && (td.geography.length > 0 || td.sectors.length > 0 || td.assetClassPro.length > 0);
 
   const handleSaveThreeDim = (td: ThreeDimensionClassification) => {
     if (!editingItem) return;
-    // Save to isin_library as source of truth
-    if (editingItem.isin && editingItem.isin !== '—') {
-      onUpdateIsinClassification(editingItem.isin, td);
-    }
+    const key = (editingItem.isin || editingItem.ticker).toUpperCase();
+    if (!key) return;
+    onUpdateIsinClassification(key, td);
     setEditingItem(null);
   };
 
-  const editingRobo = editingItem?.sourceType === 'robo'
-    ? roboAdvisors.find(r => r.id === editingItem.id)
-    : null;
+  const getAutoClassification = () => {
+    if (!editingItem || !getByIsin) return null;
+    const key = (editingItem.isin || editingItem.ticker).toUpperCase();
+    const entry = getByIsin(key);
+    if (!entry) return null;
+    return {
+      geography: entry.geography as any,
+      sectors: entry.sectors as any,
+      assetClassPro: entry.assetClassPro as any,
+    } as ThreeDimensionClassification;
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold mb-1">Radiografía (X-Ray) — {filterLabel}</h2>
-        <p className="text-sm text-muted-foreground">Exposición ponderada real en 3 dimensiones. Fuente: catálogo ISIN.</p>
+        <p className="text-sm text-muted-foreground">Resumen conjunto de Fondos + posiciones de Robo-Advisors.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -302,14 +284,13 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
 
       <Card className="border-border/50 bg-card/80 backdrop-blur">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Activos Desglosados</CardTitle>
-          <p className="text-xs text-muted-foreground">Pulsa ✏️ para editar clasificación. Los cambios se guardan en el catálogo ISIN central.</p>
+          <CardTitle className="text-base">Detalle unificado de activos</CardTitle>
+          <p className="text-xs text-muted-foreground">Edita clasificación en 3 ejes. Cada eje debe sumar 100%.</p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          {xrayAssets.length === 0 ? (
+          {xrayRows.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground text-sm">No hay activos para mostrar.</p>
-              <p className="text-muted-foreground text-xs mt-1">Añade fondos o robo-advisors en sus pestañas correspondientes.</p>
             </div>
           ) : (
             <Table>
@@ -317,59 +298,53 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
                 <TableRow>
                   <TableHead className="text-xs">Activo</TableHead>
                   <TableHead className="text-xs">ISIN</TableHead>
+                  <TableHead className="text-xs">Ticker</TableHead>
                   <TableHead className="text-xs">Origen</TableHead>
                   <TableHead className="text-xs">Entidad</TableHead>
-                  <TableHead className="text-right text-xs">Valor (€)</TableHead>
+                  <TableHead className="text-right text-xs">Aportado (€)</TableHead>
+                  <TableHead className="text-right text-xs">Valor actual (€)</TableHead>
                   <TableHead className="text-right text-xs">% Peso</TableHead>
-                  <TableHead className="text-xs">Clasificación</TableHead>
-                  <TableHead className="text-xs">Constituents</TableHead>
+                  <TableHead className="text-xs">Clasificación (resumen)</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {xrayAssets.map((a, i) => {
-                  const robo = a.sourceType === 'robo' ? roboAdvisors.find(r => r.id === a.id) : null;
-                  const roboConsts = robo ? roboConstituents.filter(c => c.roboId === robo.id) : [];
-                  const constCount = roboConsts.length || (robo?.subFunds?.length || 0);
-                  return (
-                    <TableRow key={`${a.id}-${i}`}>
-                      <TableCell className="text-sm font-medium">{a.name}</TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">{a.isin}</TableCell>
-                      <TableCell>
-                        <Badge variant={a.origin === 'Fondo Individual' ? 'default' : 'secondary'} className="text-[10px]">{a.origin}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{a.entity}</TableCell>
-                      <TableCell className="text-right font-mono text-sm">{fmt(a.value)}</TableCell>
-                      <TableCell className="text-right font-mono text-sm font-semibold">{a.weightPct.toFixed(1)}%</TableCell>
-                      <TableCell>
-                        {hasDim(a.threeDim) ? (
-                          <div className="flex flex-wrap gap-0.5">
-                            {a.threeDim!.geography.slice(0, 2).map(g => (
-                              <span key={g.name} className="text-[9px] bg-primary/20 text-primary px-1 py-0.5 rounded">{g.name} {g.weight}%</span>
-                            ))}
-                            {a.threeDim!.sectors.slice(0, 2).map(s => (
-                              <span key={s.name} className="text-[9px] bg-accent/40 text-accent-foreground px-1 py-0.5 rounded">{s.name} {s.weight}%</span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">Sin clasificar</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {a.sourceType === 'robo' ? (
-                          <span className="text-[10px] text-muted-foreground">{constCount > 0 ? `${constCount} fondos` : '—'}</span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingItem(a)}>
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {xrayRows.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="text-sm font-medium">{a.name}</TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{a.isin || '—'}</TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{a.ticker || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant={a.origin === 'Fondos' ? 'default' : 'secondary'} className="text-[10px]">{a.origin}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.entity}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{fmt(a.invested)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{fmt(a.currentValue)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm font-semibold">{a.weightPct.toFixed(1)}%</TableCell>
+                    <TableCell>
+                      {hasDim(a.threeDim) ? (
+                        <div className="flex flex-wrap gap-0.5">
+                          {a.threeDim!.geography.slice(0, 1).map(g => (
+                            <span key={g.name} className="text-[9px] bg-primary/20 text-primary px-1 py-0.5 rounded">Geo: {g.name} {g.weight}%</span>
+                          ))}
+                          {a.threeDim!.sectors.slice(0, 1).map(s => (
+                            <span key={s.name} className="text-[9px] bg-accent/40 text-accent-foreground px-1 py-0.5 rounded">Sec: {s.name} {s.weight}%</span>
+                          ))}
+                          {a.threeDim!.assetClassPro.slice(0, 1).map(ac => (
+                            <span key={ac.name} className="text-[9px] bg-amber-500/20 text-amber-500 px-1 py-0.5 rounded">ACP: {ac.name} {ac.weight}%</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Sin clasificar</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setEditingItem(a)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}
@@ -383,17 +358,8 @@ export default function XRayDashboard({ entityFilter, assets, roboAdvisors, isin
           assetName={editingItem.name}
           initial={editingItem.threeDim}
           onSave={handleSaveThreeDim}
-        >
-          {editingRobo && (
-            <SubFundsEditor
-              subFunds={editingRobo.subFunds || []}
-              onSave={(subFunds) => onUpdateRoboSubFunds(editingRobo.id, subFunds)}
-              roboName={editingRobo.name}
-              getByIsin={getByIsin}
-              upsertIsin={upsertIsin}
-            />
-          )}
-        </ThreeDimEditor>
+          onAutoClassify={getAutoClassification}
+        />
       )}
     </div>
   );
