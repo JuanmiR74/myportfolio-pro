@@ -1,10 +1,12 @@
 // =============================================================================
 // usePriceUpdater.ts
 //
-// Cambios respecto a la versión anterior:
-// 1. Si el asset ya tiene marketSymbol → salta SYMBOL_SEARCH, va directo a GLOBAL_QUOTE
-// 2. Persiste el marketSymbol encontrado en el asset (via symbols map)
-// 3. Devuelve resultados detallados para mostrar en modal
+// Fixes:
+// 1. Botón inactivo tras llamada: setIsUpdating(false) en bloque finally garantizado
+// 2. Filtrado correcto: solo activos de tipo fondo (MyInvestor/BBK) con ISIN
+// 3. lastResults se limpia al inicio de cada llamada para que el botón
+//    no quede bloqueado por resultados de la llamada anterior
+// 4. Si marketSymbol existe → salta SYMBOL_SEARCH (1 llamada en vez de 2)
 // =============================================================================
 
 import { useState, useCallback } from 'react';
@@ -12,36 +14,36 @@ import { toast } from 'sonner';
 import type { Asset } from '@/types/portfolio';
 
 // ---------------------------------------------------------------------------
-// Tipos
+// Tipos exportados — usados por FundsTable para el modal de resultados
 // ---------------------------------------------------------------------------
 export interface PriceUpdateResult {
-  assetId:       string;
-  name:          string;
-  ticker:        string;
-  marketSymbol:  string;
-  oldPrice:      number;
-  newPrice:      number;
-  change:        number;    // absoluto
-  changePct:     number;    // %
-  ok:            true;
+  assetId:      string;
+  name:         string;
+  ticker:       string;
+  marketSymbol: string;
+  oldPrice:     number;
+  newPrice:     number;
+  change:       number;
+  changePct:    number;
+  ok:           true;
 }
 
 export interface PriceUpdateError {
-  assetId:  string;
-  name:     string;
-  ticker:   string;
-  reason:   string;
-  ok:       false;
+  assetId: string;
+  name:    string;
+  ticker:  string;
+  reason:  string;
+  ok:      false;
 }
 
 export type PriceUpdateItem = PriceUpdateResult | PriceUpdateError;
 
 export interface UsePriceUpdaterReturn {
-  updatePrices:  () => Promise<void>;
-  isUpdating:    boolean;
-  progress:      number;
-  lastUpdated:   Date | null;
-  lastResults:   PriceUpdateItem[];
+  updatePrices: () => Promise<void>;
+  isUpdating:   boolean;
+  progress:     number;
+  lastUpdated:  Date | null;
+  lastResults:  PriceUpdateItem[];
 }
 
 interface Options {
@@ -61,28 +63,29 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
 
   // ── Alpha Vantage: buscar símbolo desde ISIN ────────────────────────────
   const searchSymbol = async (isin: string): Promise<string | null> => {
-    const url = `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(isin)}&apikey=${apiKey}`;
+    const url =
+      `https://www.alphavantage.co/query?function=SYMBOL_SEARCH` +
+      `&keywords=${encodeURIComponent(isin)}&apikey=${apiKey}`;
     const res  = await fetch(url);
     const data = await res.json();
-
     if (data['Note'] || data['Information']) throw new Error('rate_limit');
-
     const matches = (data['bestMatches'] ?? []) as any[];
     if (!matches.length) return null;
-
     // Preferir mercados europeos para fondos UCITS
-    const pref = matches.find(m => /\.DEX|\.LON|\.EPA|\.AMS|\.MIL|\.PAR|\.STO/i.test(m['1. symbol'] ?? ''));
+    const pref = matches.find((m: any) =>
+      /\.DEX|\.LON|\.EPA|\.AMS|\.MIL|\.PAR|\.STO/i.test(m['1. symbol'] ?? '')
+    );
     return ((pref ?? matches[0])['1. symbol'] ?? null) as string | null;
   };
 
-  // ── Alpha Vantage: obtener precio actual ────────────────────────────────
+  // ── Alpha Vantage: precio actual ────────────────────────────────────────
   const fetchPrice = async (symbol: string): Promise<number | null> => {
-    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
+    const url =
+      `https://www.alphavantage.co/query?function=GLOBAL_QUOTE` +
+      `&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
     const res  = await fetch(url);
     const data = await res.json();
-
     if (data['Note'] || data['Information']) throw new Error('rate_limit');
-
     const price = parseFloat(data['Global Quote']?.['05. price'] ?? '');
     return isNaN(price) || price <= 0 ? null : price;
   };
@@ -96,10 +99,13 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       return;
     }
 
-    // Fondos con ISIN (deduplicados por ISIN)
+    // FIX 2: Filtrar solo fondos (MyInvestor/BBK) con ISIN, deduplicados por ISIN
+    const fundTypes = new Set(['Fondos MyInvestor', 'Fondos BBK']);
     const toUpdate = [
       ...new Map(
-        assets.filter(a => a.isin && a.shares > 0).map(a => [a.isin, a])
+        assets
+          .filter(a => fundTypes.has(a.type) && a.isin && a.isin.trim() && a.shares > 0)
+          .map(a => [a.isin!, a])
       ).values(),
     ];
 
@@ -108,80 +114,95 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       return;
     }
 
+    // FIX 1 + 3: limpiar resultados anteriores y usar try/finally
     setIsUpdating(true);
     setProgress(0);
-    setLastResults([]);
+    setLastResults([]);   // ← limpiar para que el botón no quede deshabilitado
 
     const priceMap:  Record<string, number> = {};
     const symbolMap: Record<string, string> = {};
     const results:   PriceUpdateItem[]      = [];
+    let rateLimitHit = false;
 
-    for (let i = 0; i < toUpdate.length; i++) {
-      const asset = toUpdate[i];
-      const isin  = asset.isin!;
-      const name  = asset.name || isin;
-
-      try {
-        // Si ya tiene símbolo guardado → no buscar, usar directamente
-        let symbol = (asset as any).marketSymbol as string | undefined;
-
-        if (!symbol) {
-          symbol = await searchSymbol(isin) ?? undefined;
-          await sleep(1300); // respetar 5 req/min
-        }
-
-        if (!symbol) {
-          results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: 'Símbolo de mercado no encontrado para este ISIN', ok: false });
-          setProgress(Math.round(((i + 1) / toUpdate.length) * 100));
+    try {
+      for (let i = 0; i < toUpdate.length; i++) {
+        if (rateLimitHit) {
+          const a = toUpdate[i];
+          results.push({ assetId: a.id, name: a.name || a.isin!, ticker: a.ticker, reason: 'No procesado (límite de API alcanzado)', ok: false });
           continue;
         }
 
-        const newPrice = await fetchPrice(symbol);
-        if (symbol !== (asset as any).marketSymbol) await sleep(1300); // solo si hicimos 2 llamadas
+        const asset    = toUpdate[i];
+        const isin     = asset.isin!;
+        const name     = asset.name || isin;
+        const savedSym = (asset as any).marketSymbol as string | undefined;
 
-        if (newPrice === null) {
-          results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: `Precio no disponible (símbolo: ${symbol})`, ok: false });
-        } else {
-          const oldPrice  = asset.currentPrice ?? 0;
-          const change    = newPrice - oldPrice;
-          const changePct = oldPrice > 0 ? (change / oldPrice) * 100 : 0;
-          priceMap[asset.ticker]  = newPrice;
-          symbolMap[asset.ticker] = symbol;
-          results.push({ assetId: asset.id, name, ticker: asset.ticker, marketSymbol: symbol, oldPrice, newPrice, change, changePct, ok: true });
-        }
-      } catch (err: any) {
-        if (err.message === 'rate_limit') {
-          results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: 'Límite de API alcanzado (25 req/día en plan gratuito)', ok: false });
-          // Marcar el resto como no procesados
-          for (let j = i + 1; j < toUpdate.length; j++) {
-            const a = toUpdate[j];
-            results.push({ assetId: a.id, name: a.name || a.isin!, ticker: a.ticker, reason: 'No procesado (límite de API)', ok: false });
+        try {
+          let symbol = savedSym || '';
+
+          // FIX 2: si ya tiene símbolo guardado, no gastar una llamada en buscarlo
+          if (!symbol) {
+            symbol = (await searchSymbol(isin)) ?? '';
+            await sleep(1300); // pausa entre llamadas (5 req/min plan gratuito)
           }
-          break;
+
+          if (!symbol) {
+            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: 'Símbolo de mercado no encontrado. Edita el fondo y añádelo manualmente.', ok: false });
+            setProgress(Math.round(((i + 1) / toUpdate.length) * 100));
+            continue;
+          }
+
+          const newPrice = await fetchPrice(symbol);
+          // Solo pausar si hicimos 2 llamadas (sin símbolo guardado)
+          if (!savedSym) await sleep(1300);
+
+          if (newPrice === null) {
+            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: `Precio no disponible para el símbolo ${symbol}`, ok: false });
+          } else {
+            const oldPrice  = asset.currentPrice ?? 0;
+            priceMap[asset.ticker]  = newPrice;
+            symbolMap[asset.ticker] = symbol;
+            results.push({
+              assetId: asset.id, name, ticker: asset.ticker,
+              marketSymbol: symbol, oldPrice, newPrice,
+              change:    newPrice - oldPrice,
+              changePct: oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0,
+              ok: true,
+            });
+          }
+        } catch (err: any) {
+          if (err.message === 'rate_limit') {
+            rateLimitHit = true;
+            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: 'Límite de API alcanzado (25 req/día en plan gratuito). Espera un minuto.', ok: false });
+          } else {
+            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: `Error de red: ${err.message}`, ok: false });
+          }
         }
-        results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: `Error de red: ${err.message}`, ok: false });
+
+        setProgress(Math.round(((i + 1) / toUpdate.length) * 100));
       }
 
-      setProgress(Math.round(((i + 1) / toUpdate.length) * 100));
-    }
+      // Aplicar precios y símbolos encontrados
+      if (Object.keys(priceMap).length > 0) {
+        onUpdatePrices(priceMap, symbolMap);
+        setLastUpdated(new Date());
+      }
 
-    // Aplicar precios y símbolos
-    if (Object.keys(priceMap).length > 0) {
-      onUpdatePrices(priceMap, symbolMap);
-      setLastUpdated(new Date());
-    }
+      setLastResults(results);
 
-    setLastResults(results);
-    setIsUpdating(false);
-    setProgress(0);
+      // Toast resumen
+      const okCount  = results.filter(r => r.ok).length;
+      const errCount = results.filter(r => !r.ok).length;
+      if (okCount > 0) {
+        toast.success(`${okCount} precio${okCount !== 1 ? 's' : ''} actualizado${okCount !== 1 ? 's' : ''}${errCount > 0 ? ` · ${errCount} con errores` : ''}`);
+      } else {
+        toast.error('No se pudo actualizar ningún precio. Revisa tu API Key o los símbolos de mercado.');
+      }
 
-    // Toast resumen
-    const ok  = results.filter(r => r.ok).length;
-    const err = results.filter(r => !r.ok).length;
-    if (ok > 0) {
-      toast.success(`${ok} precio${ok !== 1 ? 's' : ''} actualizado${ok !== 1 ? 's' : ''}${err > 0 ? ` · ${err} con errores` : ''}`);
-    } else {
-      toast.error('No se pudo actualizar ningún precio');
+    } finally {
+      // FIX 1: SIEMPRE liberar el botón, aunque haya una excepción no capturada
+      setIsUpdating(false);
+      setProgress(0);
     }
   }, [apiKey, assets, onUpdatePrices]);
 
