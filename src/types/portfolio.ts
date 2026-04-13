@@ -81,6 +81,16 @@ export interface RoboSubFund {
   threeDim?: ThreeDimensionClassification;
 }
 
+export interface RoboPosition {
+  id: string;
+  isin: string;
+  ticker: string;
+  name: string;
+  currency: string;
+  shares: number;
+  currentPrice?: number;
+}
+
 export interface RoboAdvisor {
   id: string;
   name: string;
@@ -93,6 +103,7 @@ export interface RoboAdvisor {
   movements?: RoboMovement[];
   threeDim?: ThreeDimensionClassification;
   subFunds?: RoboSubFund[];
+  positions?: RoboPosition[];
 }
 
 export interface IsinEntry {

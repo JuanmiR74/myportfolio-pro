@@ -153,7 +153,7 @@ export default function FundsTable({
   const [historyAssetId, setHistoryAssetId] = useState<string | null>(null);
   const [showResults,  setShowResults]  = useState(false);
   const [editForm, setEditForm] = useState({
-    shares: '', buyPrice: '', currentPrice: '', marketSymbol: '',
+    name: '', ticker: '', shares: '', buyPrice: '', currentPrice: '', marketSymbol: '',
   });
   const [form, setForm] = useState({
     name: '', ticker: '', type: 'Fondos MyInvestor' as AssetType,
@@ -195,7 +195,7 @@ export default function FundsTable({
 
   // Fondos actualizables (solo tipos fondo, con ISIN)
   const updatableCount = assets.filter(
-    a => ['Fondos MyInvestor', 'Fondos BBK'].includes(a.type) && a.isin && a.shares > 0
+    a => ['Fondos MyInvestor', 'Fondos BBK'].includes(a.type) && (a.isin || a.ticker) && a.shares > 0
   ).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -228,6 +228,8 @@ export default function FundsTable({
   const startEditing = (a: Asset) => {
     setEditingId(a.id);
     setEditForm({
+      name:         a.name,
+      ticker:       (a.isin || a.ticker || '').toUpperCase(),
       shares:       a.shares.toString(),
       buyPrice:     a.buyPrice.toString(),
       currentPrice: a.currentPrice.toString(),
@@ -236,7 +238,15 @@ export default function FundsTable({
   };
 
   const handleSaveEdit = (id: string) => {
+    if (!editForm.name.trim() || !editForm.ticker.trim()) {
+      toast.error('El nombre y el ISIN son obligatorios');
+      return;
+    }
+    const normalizedIsin = editForm.ticker.trim().toUpperCase();
     onUpdate(id, {
+      name:         editForm.name.trim(),
+      ticker:       normalizedIsin,
+      isin:         normalizedIsin,
       shares:       parseFloat(editForm.shares),
       buyPrice:     parseFloat(editForm.buyPrice),
       currentPrice: parseFloat(editForm.currentPrice),
@@ -290,7 +300,7 @@ export default function FundsTable({
                 {!apiKey
                   ? '⚠ Configura tu Alpha Vantage API Key en Configuración'
                   : updatableCount === 0
-                  ? 'No hay fondos MyInvestor/BBK con ISIN'
+                  ? 'No hay fondos MyInvestor/BBK con ISIN o ticker'
                   : `Actualiza ${updatableCount} fondo${updatableCount !== 1 ? 's' : ''} · Fondos con símbolo guardado usan 1 llamada en vez de 2`}
               </TooltipContent>
             </Tooltip>
@@ -420,10 +430,27 @@ export default function FundsTable({
                   <TableRow key={a.id} className={isEditing ? 'bg-muted/30' : ''}>
                     {/* Nombre + ISIN */}
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm line-clamp-1">{a.name}</span>
-                        <span className="text-[10px] font-mono text-muted-foreground uppercase">{a.ticker}</span>
-                      </div>
+                      {isEditing ? (
+                        <div className="flex flex-col gap-1">
+                          <Input
+                            className="h-7 text-xs"
+                            value={editForm.name}
+                            placeholder="Nombre del fondo"
+                            onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                          />
+                          <Input
+                            className="h-7 text-xs font-mono uppercase"
+                            value={editForm.ticker}
+                            placeholder="ISIN"
+                            onChange={e => setEditForm({ ...editForm, ticker: e.target.value.toUpperCase() })}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm line-clamp-1">{a.name}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground uppercase">{a.ticker}</span>
+                        </div>
+                      )}
                     </TableCell>
 
                     {/* Entidad */}

@@ -52,6 +52,10 @@ interface Options {
   onUpdatePrices: (prices: Record<string, number>, symbols: Record<string, string>) => void;
 }
 
+function getIsinCandidate(asset: Asset): string {
+  return (asset.isin || asset.ticker || '').trim().toUpperCase();
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -104,8 +108,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
     const toUpdate = [
       ...new Map(
         assets
-          .filter(a => fundTypes.has(a.type) && a.isin && a.isin.trim() && a.shares > 0)
-          .map(a => [a.isin!, a])
+          .filter(a => fundTypes.has(a.type) && getIsinCandidate(a) && a.shares > 0)
+          .map(a => [getIsinCandidate(a), a])
       ).values(),
     ];
 
@@ -133,7 +137,7 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
         }
 
         const asset    = toUpdate[i];
-        const isin     = asset.isin!;
+        const isin     = getIsinCandidate(asset);
         const name     = asset.name || isin;
         const savedSym = (asset as any).marketSymbol as string | undefined;
 
@@ -196,7 +200,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       if (okCount > 0) {
         toast.success(`${okCount} precio${okCount !== 1 ? 's' : ''} actualizado${okCount !== 1 ? 's' : ''}${errCount > 0 ? ` · ${errCount} con errores` : ''}`);
       } else {
-        toast.error('No se pudo actualizar ningún precio. Revisa tu API Key o los símbolos de mercado.');
+        const firstReason = results.find(r => !r.ok)?.reason;
+        toast.error(`No se pudo actualizar ningún precio${firstReason ? ` · ${firstReason}` : '. Revisa tu API Key o los símbolos de mercado.'}`);
       }
 
     } finally {

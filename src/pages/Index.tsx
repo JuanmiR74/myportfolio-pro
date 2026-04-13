@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useIsinLibrary } from '@/hooks/useIsinLibrary';
-import { useRoboConstituents } from '@/hooks/useRoboConstituents';
 import { Header } from '@/components/Header';
 import SummaryCards from '@/components/portfolio/SummaryCards';
 import AllocationChart from '@/components/portfolio/AllocationChart';
@@ -21,7 +20,6 @@ type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 export default function Index() {
   const p = usePortfolio();
   const isinLib = useIsinLibrary();
-  const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
   const mergedIsinLibrary = useMemo(() => {
@@ -117,7 +115,13 @@ export default function Index() {
 
           <TabsContent value="robos" className="space-y-4">
             <RoboImporter />
-            <RoboAdvisors robos={p.roboAdvisors} onAdd={p.addRoboAdvisor} onUpdate={p.updateRoboAdvisor} onRemove={p.removeRoboAdvisor} />
+            <RoboAdvisors
+              robos={p.roboAdvisors}
+              apiKey={p.apiKey}
+              onAdd={p.addRoboAdvisor}
+              onUpdate={p.updateRoboAdvisor}
+              onRemove={p.removeRoboAdvisor}
+            />
           </TabsContent>
 
           <TabsContent value="xray" className="space-y-4">
@@ -126,11 +130,8 @@ export default function Index() {
               assets={p.assets}
               roboAdvisors={p.roboAdvisors}
               isinLibrary={mergedIsinLibrary}
-              roboConstituents={roboConsts.constituents}
+              apiKey={p.apiKey}
               onUpdateIsinClassification={isinLib.updateIsinClassification}
-              onUpdateRoboSubFunds={p.updateRoboSubFunds}
-              getByIsin={p.getByIsin}
-              upsertIsin={p.upsertIsin}
             />
           </TabsContent>
 

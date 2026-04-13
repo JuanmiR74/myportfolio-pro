@@ -35,7 +35,7 @@ export default function SettingsPanel({ apiKey, cashBalance, assets, onSetApiKey
         onUpdatePrices(prices);
         toast.success(`${updated} precio(s) actualizado(s)`);
       } else {
-        toast.warning('No se obtuvieron precios. Verifica tu API Key o los tickers.');
+        toast.warning('No se obtuvieron precios. Posibles causas: API key inválida, límite de Alpha Vantage, o tickers/ISIN sin símbolo de mercado.');
       }
     } catch {
       toast.error('Error al conectar con Alpha Vantage');
