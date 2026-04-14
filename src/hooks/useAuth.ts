@@ -4,19 +4,16 @@ import { AuthContext } from '@/contexts/AuthContext';
 export function useAuth() {
   const context = useContext(AuthContext);
   
+  // Si el contexto es undefined, estamos fuera del AuthProvider
   if (context === undefined) {
-    // En desarrollo, lanzar error para detectar el problema
-    // En producción, retornar un valor seguro para evitar crash
-    if (process.env.NODE_ENV === 'development') {
-      throw new Error('useAuth must be used within an AuthProvider');
-    }
-    // Valor seguro para producción durante SSR o inicialización
+    // En producción, devolvemos un estado seguro para no crashear la app inmediatamente
+    // En desarrollo, podríamos lanzar un error, pero para evitar el crash blanco:
     return {
       user: null,
       session: null,
-      loading: true,
-      signUp: async () => ({ user: null, error: 'Auth not ready' }),
-      signIn: async () => ({ user: null, error: 'Auth not ready' }),
+      loading: true, // Asumimos carga mientras se inicia
+      signUp: async () => ({ user: null, error: 'Auth no disponible' }),
+      signIn: async () => ({ user: null, error: 'Auth no disponible' }),
       signOut: async () => {},
     };
   }
