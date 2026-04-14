@@ -37,6 +37,7 @@ export function usePortfolio() {
 //  const { user } = useAuth();
   const auth = useAuth();
 const user = auth?.user; // Use nullish coalescing
+  const isAuthLoading = auth?.loading ?? true;
   const [state, setState]     = useState<PortfolioState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
