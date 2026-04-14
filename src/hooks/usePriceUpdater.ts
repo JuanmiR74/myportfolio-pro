@@ -200,7 +200,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       if (okCount > 0) {
         toast.success(`${okCount} precio${okCount !== 1 ? 's' : ''} actualizado${okCount !== 1 ? 's' : ''}${errCount > 0 ? ` · ${errCount} con errores` : ''}`);
       } else {
-        toast.error('No se pudo actualizar ningún precio. Revisa tu API Key o los símbolos de mercado.');
+        const firstReason = results.find(r => !r.ok)?.reason;
+        toast.error(`No se pudo actualizar ningún precio${firstReason ? ` · ${firstReason}` : '. Revisa tu API Key o los símbolos de mercado.'}`);
       }
 
     } finally {

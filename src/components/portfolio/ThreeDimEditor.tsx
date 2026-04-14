@@ -130,3 +130,4 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
     </Dialog>
   );
 }
+  const [autoLoading, setAutoLoading] = useState(false);
