@@ -52,6 +52,29 @@ interface Options {
   onUpdatePrices: (prices: Record<string, number>, symbols: Record<string, string>) => void;
 }
 
+function getIsinCandidate(asset: Asset): string {
+  return (asset.isin || asset.ticker || '').trim().toUpperCase();
+}
+
+function getAlphaVantageError(data: any): string | null {
+  const note = (data?.Note || data?.Information || '').toString();
+  const hardError = (data?.['Error Message'] || '').toString();
+  if (hardError) return `Alpha Vantage: ${hardError}`;
+  if (!note) return null;
+
+  const lower = note.toLowerCase();
+  if (lower.includes('25 requests per day')) {
+    return 'Límite diario de Alpha Vantage alcanzado (25 solicitudes/día en plan gratis).';
+  }
+  if (lower.includes('5 calls per minute')) {
+    return 'Límite por minuto de Alpha Vantage alcanzado (5 solicitudes/min en plan gratis).';
+  }
+  if (lower.includes('api key') || lower.includes('invalid')) {
+    return 'API key inválida o no configurada correctamente en Alpha Vantage.';
+  }
+  return `Alpha Vantage respondió con restricción: ${note}`;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -68,7 +91,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       `&keywords=${encodeURIComponent(isin)}&apikey=${apiKey}`;
     const res  = await fetch(url);
     const data = await res.json();
-    if (data['Note'] || data['Information']) throw new Error('rate_limit');
+    const apiErr = getAlphaVantageError(data);
+    if (apiErr) throw new Error(apiErr);
     const matches = (data['bestMatches'] ?? []) as any[];
     if (!matches.length) return null;
     // Preferir mercados europeos para fondos UCITS
@@ -85,7 +109,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       `&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
     const res  = await fetch(url);
     const data = await res.json();
-    if (data['Note'] || data['Information']) throw new Error('rate_limit');
+    const apiErr = getAlphaVantageError(data);
+    if (apiErr) throw new Error(apiErr);
     const price = parseFloat(data['Global Quote']?.['05. price'] ?? '');
     return isNaN(price) || price <= 0 ? null : price;
   };
@@ -104,8 +129,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
     const toUpdate = [
       ...new Map(
         assets
-          .filter(a => fundTypes.has(a.type) && a.isin && a.isin.trim() && a.shares > 0)
-          .map(a => [a.isin!, a])
+          .filter(a => fundTypes.has(a.type) && getIsinCandidate(a) && a.shares > 0)
+          .map(a => [getIsinCandidate(a), a])
       ).values(),
     ];
 
@@ -133,7 +158,7 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
         }
 
         const asset    = toUpdate[i];
-        const isin     = asset.isin!;
+        const isin     = getIsinCandidate(asset);
         const name     = asset.name || isin;
         const savedSym = (asset as any).marketSymbol as string | undefined;
 
@@ -171,9 +196,9 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
             });
           }
         } catch (err: any) {
-          if (err.message === 'rate_limit') {
+          if ((err?.message || '').toLowerCase().includes('alpha vantage') || (err?.message || '').toLowerCase().includes('límite')) {
             rateLimitHit = true;
-            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: 'Límite de API alcanzado (25 req/día en plan gratuito). Espera un minuto.', ok: false });
+            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: err.message, ok: false });
           } else {
             results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: `Error de red: ${err.message}`, ok: false });
           }
@@ -196,7 +221,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       if (okCount > 0) {
         toast.success(`${okCount} precio${okCount !== 1 ? 's' : ''} actualizado${okCount !== 1 ? 's' : ''}${errCount > 0 ? ` · ${errCount} con errores` : ''}`);
       } else {
-        toast.error('No se pudo actualizar ningún precio. Revisa tu API Key o los símbolos de mercado.');
+        const firstReason = results.find(r => !r.ok)?.reason;
+        toast.error(`No se pudo actualizar ningún precio${firstReason ? ` · ${firstReason}` : '. Revisa tu API Key o los símbolos de mercado.'}`);
       }
 
     } finally {
