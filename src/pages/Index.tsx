@@ -1,5 +1,14 @@
 import { useState, useMemo } from 'react';
-import { ChartBar as BarChart3, BookOpen, Bot, Settings, ScanSearch, Filter, Loader as Loader2, Library } from 'lucide-react';
+import { 
+  BarChart3, 
+  BookOpen, 
+  Bot, 
+  Settings, 
+  ScanSearch, 
+  Filter, 
+  Loader2, 
+  Library 
+} from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
@@ -24,22 +33,38 @@ export default function Index() {
   const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
+  // 1. Lógica de combinación de librería ISIN (Memorizada para rendimiento)
   const mergedIsinLibrary = useMemo(() => {
-    const map = new Map<string, typeof isinLib.entries[0]>();
-    isinLib.entries.forEach(e => map.set(e.isin, e));
-    p.isinLibrary.forEach(e => {
-      const existing = map.get(e.isin);
-      if (!existing || e.geography?.length || e.sectors?.length || e.assetClassPro?.length) {
-        map.set(e.isin, e as typeof isinLib.entries[0]);
-      }
-    });
-    return Array.from(map.values());
-  }, [isinLib.entries, p.isinLibrary]);
+    // Si todavía está cargando, devolvemos un array vacío para evitar errores
+    if (p.loading) return [];
 
+    const map = new Map<string, any>();
+    
+    // Añadimos entradas de la librería global
+    if (isinLib.entries) {
+      isinLib.entries.forEach(e => map.set(e.isin, e));
+    }
+
+    // Sobrescribimos o añadimos con la librería local del usuario
+    if (p.isinLibrary) {
+      p.isinLibrary.forEach(e => {
+        const existing = map.get(e.isin);
+        if (!existing || e.geography?.length || e.sectors?.length || e.assetClassPro?.length) {
+          map.set(e.isin, e);
+        }
+      });
+    }
+    
+    return Array.from(map.values());
+  }, [isinLib.entries, p.isinLibrary, p.loading]);
+
+  // 2. ESCUDO DE CARGA: Si el portfolio está cargando, mostramos el spinner
+  // Esto evita que los componentes hijos intenten leer datos que aún son null
   if (p.loading) {
     return (
-      <div className="dark min-h-screen bg-background text-foreground flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="dark min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground animate-pulse">Cargando tu cartera...</p>
       </div>
     );
   }
@@ -47,17 +72,24 @@ export default function Index() {
   return (
     <div className="dark min-h-screen bg-background text-foreground">
       <Header />
+      
+      {/* Barra de Herramientas Superior */}
       <div className="border-b border-border/50 bg-card/50 backdrop-blur">
         <div className="container flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
-            <h1 className="text-lg font-semibold tracking-tight">Portfolio<span className="text-primary">Pro</span></h1>
+            <h1 className="text-lg font-semibold tracking-tight">
+              Portfolio<span className="text-primary">Pro</span>
+            </h1>
           </div>
+          
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
               <Select value={entityFilter} onValueChange={v => setEntityFilter(v as EntityFilter)}>
-                <SelectTrigger className="w-40 h-8 text-xs border-border/50"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-40 h-8 text-xs border-border/50">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Cartera Global</SelectItem>
                   <SelectItem value="MyInvestor">MyInvestor</SelectItem>
@@ -71,6 +103,7 @@ export default function Index() {
       </div>
 
       <main className="container py-6 px-4 space-y-6">
+        {/* Resumen de Valores */}
         <SummaryCards
           totalValue={p.summary.totalValue}
           totalPL={p.summary.totalPL}
@@ -103,13 +136,16 @@ export default function Index() {
 
           <TabsContent value="dashboard" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              <div className="lg:col-span-2"><AllocationChart data={p.distribution} /></div>
-              <div className="lg:col-span-3"><HistoryChart data={p.historicalData} /></div>
+              <div className="lg:col-span-2">
+                <AllocationChart data={p.distribution} />
+              </div>
+              <div className="lg:col-span-3">
+                <HistoryChart data={p.historicalData} />
+              </div>
             </div>
           </TabsContent>
 
           <TabsContent value="fondos" className="space-y-4">
-            {/* FIX: añadidas onUpdatePrices y apiKey — requeridas por FundsTable */}
             <FundsTable
               assets={p.assets}
               onAdd={p.addAsset}
