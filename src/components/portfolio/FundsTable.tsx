@@ -45,8 +45,8 @@ function fmtPct(n: number) {
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK';
 
 function getInvested(asset: Asset): number {
-  if (asset.movements?.length) return calcInvestedFromMovements(asset.movements as any);
-  return asset.buyPrice;
+  if ((asset as any).movements?.length) return calcInvestedFromMovements((asset as any).movements);
+  return asset.buyPrice * asset.shares;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,9 +152,12 @@ export default function FundsTable({
   const [editingId,    setEditingId]    = useState<string | null>(null);
   const [historyAssetId, setHistoryAssetId] = useState<string | null>(null);
   const [showResults,  setShowResults]  = useState(false);
+  const [wasUpdating,  setWasUpdating]  = useState(false);
+  
   const [editForm, setEditForm] = useState({
     name: '', ticker: '', shares: '', buyPrice: '', currentPrice: '', marketSymbol: '',
   });
+  
   const [form, setForm] = useState({
     name: '', ticker: '', type: 'Fondos MyInvestor' as AssetType,
     shares: '', buyPrice: '', currentPrice: '',
@@ -165,8 +168,6 @@ export default function FundsTable({
     usePriceUpdater({ apiKey, assets, onUpdatePrices });
 
   // Abrir modal cuando termina la actualización y hay resultados
-  // FIX: comprobamos que isUpdating acaba de pasar de true a false
-  const [wasUpdating, setWasUpdating] = useState(false);
   useEffect(() => {
     if (isUpdating) { setWasUpdating(true); return; }
     if (wasUpdating && lastResults.length > 0) {
@@ -175,10 +176,7 @@ export default function FundsTable({
     }
   }, [isUpdating, wasUpdating, lastResults.length]);
 
-  // FIX historyAsset: guardamos solo el ID y resolvemos el asset fresco
-  // en cada render desde la prop `assets`. Así cuando addMovement muta el
-  // estado global, FundsTable recibe el nuevo array, y el historyAsset
-  // fresco se pasa a TransactionHistory automáticamente.
+  // Resolver el asset fresco desde la prop assets
   const historyAsset = historyAssetId
     ? assets.find(a => a.id === historyAssetId) ?? null
     : null;
@@ -206,7 +204,7 @@ export default function FundsTable({
       setForm(prev => ({
         ...prev,
         name: prev.name || entry.name,
-        type: (entry.assetType as AssetType) || prev.type,
+        type: (prev.type || entry.assetType) as AssetType,
       }));
       toast.info('Datos recuperados de la librería ISIN');
     }
@@ -217,9 +215,10 @@ export default function FundsTable({
     const isin = form.ticker.toUpperCase();
     onAdd({
       name: form.name, ticker: isin, isin, type: form.type,
-      shares: parseFloat(form.shares), buyPrice: parseFloat(form.buyPrice),
-      currentPrice: parseFloat(form.currentPrice || '0'), movements: [],
-    });
+      shares: parseFloat(form.shares), 
+      buyPrice: parseFloat(form.buyPrice),
+      currentPrice: parseFloat(form.currentPrice || '0'),
+    } as any);
     upsertIsin?.({ isin, name: form.name, assetType: form.type, geography: [], sectors: [], assetClassPro: [] });
     setForm({ name: '', ticker: '', type: 'Fondos MyInvestor', shares: '', buyPrice: '', currentPrice: '' });
     setOpen(false);
@@ -231,7 +230,7 @@ export default function FundsTable({
       name:         a.name,
       ticker:       (a.isin || a.ticker || '').toUpperCase(),
       shares:       a.shares.toString(),
-      buyPrice:     a.buyPrice.toString(),
+      buyPrice:     (a.buyPrice * a.shares).toString(),
       currentPrice: a.currentPrice.toString(),
       marketSymbol: (a as any).marketSymbol || '',
     });
@@ -243,12 +242,16 @@ export default function FundsTable({
       return;
     }
     const normalizedIsin = editForm.ticker.trim().toUpperCase();
+    const investedAmount = parseFloat(editForm.buyPrice);
+    const shares = parseFloat(editForm.shares);
+    const buyPricePerShare = shares > 0 ? investedAmount / shares : 0;
+    
     onUpdate(id, {
       name:         editForm.name.trim(),
       ticker:       normalizedIsin,
       isin:         normalizedIsin,
-      shares:       parseFloat(editForm.shares),
-      buyPrice:     parseFloat(editForm.buyPrice),
+      shares:       shares,
+      buyPrice:     buyPricePerShare,
       currentPrice: parseFloat(editForm.currentPrice),
       ...(editForm.marketSymbol.trim() ? { marketSymbol: editForm.marketSymbol.trim() } : {}),
     } as any);
@@ -417,13 +420,13 @@ export default function FundsTable({
             <TableBody>
               {filtered.map(a => {
                 const isEditing    = editingId === a.id;
-                const invested     = isEditing ? parseFloat(editForm.buyPrice)     : getInvested(a);
-                const shares       = isEditing ? parseFloat(editForm.shares)       : a.shares;
+                const invested     = isEditing ? parseFloat(editForm.buyPrice) : getInvested(a);
+                const shares       = isEditing ? parseFloat(editForm.shares) : a.shares;
                 const currentPrice = isEditing ? parseFloat(editForm.currentPrice) : a.currentPrice;
                 const currentVal   = (shares * currentPrice) || 0;
                 const profitEuro   = currentVal - invested;
                 const profitPct    = invested > 0 ? (profitEuro / invested) * 100 : 0;
-                const hasMovements = ((a.movements as any[])?.length ?? 0) > 0;
+                const hasMovements = ((a as any).movements?.length ?? 0) > 0;
                 const marketSymbol = (a as any).marketSymbol as string | undefined;
 
                 return (
@@ -480,7 +483,7 @@ export default function FundsTable({
                         <span className="font-semibold">{fmt(invested)}</span>
                         {hasMovements && (
                           <span className="text-[10px] text-muted-foreground">
-                            {(a.movements as any[]).length} mov.
+                            {(a as any).movements.length} mov.
                           </span>
                         )}
                       </div>
