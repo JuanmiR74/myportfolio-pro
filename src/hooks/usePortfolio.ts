@@ -36,7 +36,7 @@ export function calcInvestedFromMovements(movements: RoboMovement[]): number {
 export function usePortfolio() {
 //  const { user } = useAuth();
   const auth = useAuth();
-const user = auth?.user;
+const user = auth?.user; // Use nullish coalescing
   const [state, setState]     = useState<PortfolioState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
