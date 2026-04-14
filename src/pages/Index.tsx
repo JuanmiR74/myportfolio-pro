@@ -28,24 +28,24 @@ import IsinLibraryView from '@/components/portfolio/IsinLibraryView';
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 
 export default function Index() {
+  // 1. DECLARACIÓN DE TODOS LOS HOOKS (Siempre al principio)
   const p = usePortfolio();
-  const isinLib    = useIsinLibrary();
+  const isinLib = useIsinLibrary();
   const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
-  // 1. Lógica de combinación de librería ISIN (Memorizada para rendimiento)
+  // Lógica de combinación de librería ISIN (Memorizada)
+  // Nota: Movida antes del IF para mantener el orden de Hooks constante
   const mergedIsinLibrary = useMemo(() => {
-    // Si todavía está cargando, devolvemos un array vacío para evitar errores
+    // Si todavía está cargando, devolvemos un array vacío pero el Hook ya se registró
     if (p.loading) return [];
 
     const map = new Map<string, any>();
     
-    // Añadimos entradas de la librería global
     if (isinLib.entries) {
       isinLib.entries.forEach(e => map.set(e.isin, e));
     }
 
-    // Sobrescribimos o añadimos con la librería local del usuario
     if (p.isinLibrary) {
       p.isinLibrary.forEach(e => {
         const existing = map.get(e.isin);
@@ -58,8 +58,7 @@ export default function Index() {
     return Array.from(map.values());
   }, [isinLib.entries, p.isinLibrary, p.loading]);
 
-  // 2. ESCUDO DE CARGA: Si el portfolio está cargando, mostramos el spinner
-  // Esto evita que los componentes hijos intenten leer datos que aún son null
+  // 2. COMPROBACIÓN DE CARGA (Después de declarar todos los Hooks)
   if (p.loading) {
     return (
       <div className="dark min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4">
@@ -69,11 +68,11 @@ export default function Index() {
     );
   }
 
+  // 3. RENDERIZADO PRINCIPAL
   return (
     <div className="dark min-h-screen bg-background text-foreground">
       <Header />
       
-      {/* Barra de Herramientas Superior */}
       <div className="border-b border-border/50 bg-card/50 backdrop-blur">
         <div className="container flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-2">
@@ -103,7 +102,6 @@ export default function Index() {
       </div>
 
       <main className="container py-6 px-4 space-y-6">
-        {/* Resumen de Valores */}
         <SummaryCards
           totalValue={p.summary.totalValue}
           totalPL={p.summary.totalPL}
