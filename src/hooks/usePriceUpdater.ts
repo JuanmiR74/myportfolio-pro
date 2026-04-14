@@ -1,12 +1,5 @@
 // =============================================================================
 // usePriceUpdater.ts
-//
-// Fixes:
-// 1. Botón inactivo tras llamada: setIsUpdating(false) en bloque finally garantizado
-// 2. Filtrado correcto: solo activos de tipo fondo (MyInvestor/BBK) con ISIN
-// 3. lastResults se limpia al inicio de cada llamada para que el botón
-//    no quede bloqueado por resultados de la llamada anterior
-// 4. Si marketSymbol existe → salta SYMBOL_SEARCH (1 llamada en vez de 2)
 // =============================================================================
 
 import { useState, useCallback } from 'react';
@@ -14,7 +7,7 @@ import { toast } from 'sonner';
 import type { Asset } from '@/types/portfolio';
 
 // ---------------------------------------------------------------------------
-// Tipos exportados — usados por FundsTable para el modal de resultados
+// Tipos exportados
 // ---------------------------------------------------------------------------
 export interface PriceUpdateResult {
   assetId:      string;
@@ -84,7 +77,7 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [lastResults, setLastResults] = useState<PriceUpdateItem[]>([]);
 
-  // ── Alpha Vantage: buscar símbolo desde ISIN ────────────────────────────
+  // Alpha Vantage: buscar símbolo desde ISIN
   const searchSymbol = async (isin: string): Promise<string | null> => {
     const url =
       `https://www.alphavantage.co/query?function=SYMBOL_SEARCH` +
@@ -95,14 +88,13 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
     if (apiErr) throw new Error(apiErr);
     const matches = (data['bestMatches'] ?? []) as any[];
     if (!matches.length) return null;
-    // Preferir mercados europeos para fondos UCITS
     const pref = matches.find((m: any) =>
       /\.DEX|\.LON|\.EPA|\.AMS|\.MIL|\.PAR|\.STO/i.test(m['1. symbol'] ?? '')
     );
     return ((pref ?? matches[0])['1. symbol'] ?? null) as string | null;
   };
 
-  // ── Alpha Vantage: precio actual ────────────────────────────────────────
+  // Alpha Vantage: precio actual
   const fetchPrice = async (symbol: string): Promise<number | null> => {
     const url =
       `https://www.alphavantage.co/query?function=GLOBAL_QUOTE` +
@@ -117,20 +109,20 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
 
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-  // ── Función principal ────────────────────────────────────────────────────
+  // Función principal
   const updatePrices = useCallback(async () => {
     if (!apiKey?.trim()) {
       toast.error('Configura tu Alpha Vantage API Key en Configuración');
       return;
     }
 
-    // FIX 2: Filtrar solo fondos (MyInvestor/BBK) con ISIN, deduplicados por ISIN
+    // Filtrar solo fondos (MyInvestor/BBK) con ISIN, deduplicados por ISIN
     const fundTypes = new Set(['Fondos MyInvestor', 'Fondos BBK']);
     const toUpdate = [
       ...new Map(
         assets
-          .filter(a => fundTypes.has(a.type) && getIsinCandidate(a) && a.shares > 0)
-          .map(a => [getIsinCandidate(a), a])
+          .filter(a => fundTypes.has(a.type) && a.isin && a.isin.trim() && a.shares > 0)
+          .map(a => [a.isin!, a])
       ).values(),
     ];
 
@@ -139,10 +131,9 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       return;
     }
 
-    // FIX 1 + 3: limpiar resultados anteriores y usar try/finally
     setIsUpdating(true);
     setProgress(0);
-    setLastResults([]);   // ← limpiar para que el botón no quede deshabilitado
+    setLastResults([]);
 
     const priceMap:  Record<string, number> = {};
     const symbolMap: Record<string, string> = {};
@@ -158,17 +149,16 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
         }
 
         const asset    = toUpdate[i];
-        const isin     = getIsinCandidate(asset);
+        const isin     = asset.isin!;
         const name     = asset.name || isin;
         const savedSym = (asset as any).marketSymbol as string | undefined;
 
         try {
           let symbol = savedSym || '';
 
-          // FIX 2: si ya tiene símbolo guardado, no gastar una llamada en buscarlo
           if (!symbol) {
             symbol = (await searchSymbol(isin)) ?? '';
-            await sleep(1300); // pausa entre llamadas (5 req/min plan gratuito)
+            await sleep(1300);
           }
 
           if (!symbol) {
@@ -178,7 +168,6 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
           }
 
           const newPrice = await fetchPrice(symbol);
-          // Solo pausar si hicimos 2 llamadas (sin símbolo guardado)
           if (!savedSym) await sleep(1300);
 
           if (newPrice === null) {
@@ -207,7 +196,6 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
         setProgress(Math.round(((i + 1) / toUpdate.length) * 100));
       }
 
-      // Aplicar precios y símbolos encontrados
       if (Object.keys(priceMap).length > 0) {
         onUpdatePrices(priceMap, symbolMap);
         setLastUpdated(new Date());
@@ -215,18 +203,15 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
 
       setLastResults(results);
 
-      // Toast resumen
       const okCount  = results.filter(r => r.ok).length;
       const errCount = results.filter(r => !r.ok).length;
       if (okCount > 0) {
         toast.success(`${okCount} precio${okCount !== 1 ? 's' : ''} actualizado${okCount !== 1 ? 's' : ''}${errCount > 0 ? ` · ${errCount} con errores` : ''}`);
       } else {
-        const firstReason = results.find(r => !r.ok)?.reason;
-        toast.error(`No se pudo actualizar ningún precio${firstReason ? ` · ${firstReason}` : '. Revisa tu API Key o los símbolos de mercado.'}`);
+        toast.error('No se pudo actualizar ningún precio. Revisa tu API Key o los símbolos de mercado.');
       }
 
     } finally {
-      // FIX 1: SIEMPRE liberar el botón, aunque haya una excepción no capturada
       setIsUpdating(false);
       setProgress(0);
     }
