@@ -21,7 +21,7 @@ function emptyThreeDim(): ThreeDimensionClassification {
 }
 
 /**
- * Calcula el capital invertido neto a partir de movimientos.
+ * Calcula el capital invertido neto desde movimientos.
  * Exportada para uso en FundsTable y TransactionHistory.
  */
 export function calcInvestedFromMovements(movements: RoboMovement[]): number {
@@ -113,8 +113,7 @@ export function usePortfolio() {
     updateAsset(id, { threeDim });
   }, [updateAsset]);
 
-  // ── Movimientos (dentro del asset en JSONB) ───────────────────────────────
-  // NUEVO: estas funciones faltaban y causaban "r is not a function"
+  // ── Movimientos dentro del asset (NUEVO — faltaban en el repo) ────────────
   const addMovement = useCallback((assetId: string, movement: Omit<RoboMovement, 'id'>) => {
     if (!user) return;
     const newMovement: RoboMovement = { ...movement, id: crypto.randomUUID() };
@@ -134,7 +133,7 @@ export function usePortfolio() {
       ...prev,
       assets: prev.assets.map(a =>
         a.id === assetId
-          ? { ...a, movements: (a.movements || []).filter((m: RoboMovement) => m.id !== movementId) }
+          ? { ...a, movements: (a.movements || []).filter(m => m.id !== movementId) }
           : a
       ),
     }));
@@ -176,22 +175,23 @@ export function usePortfolio() {
     mutate(prev => ({ ...prev, cashBalance }));
   }, [user, mutate]);
 
-  // FIX: acepta symbols opcional para persistir marketSymbol junto con el precio
+  // FIX: acepta symbols opcional → permite persistir marketSymbol desde usePriceUpdater
+  // Retrocompatible: SettingsPanel solo pasa prices (1 arg) y sigue funcionando
   const updatePrices = useCallback((
-    prices:  Record<string, number>,
+    prices:   Record<string, number>,
     symbols?: Record<string, string>
   ) => {
     if (!user) return;
     mutate(prev => ({
       ...prev,
       assets: prev.assets.map(a => {
-        const hasPrice  = prices[a.ticker]    !== undefined;
-        const hasSymbol = symbols?.[a.ticker] !== undefined;
-        if (!hasPrice && !hasSymbol) return a;
+        const newPrice  = prices[a.ticker];
+        const newSymbol = symbols?.[a.ticker];
+        if (newPrice === undefined && !newSymbol) return a;
         return {
           ...a,
-          ...(hasPrice  ? { currentPrice:  prices[a.ticker] }   : {}),
-          ...(hasSymbol ? { marketSymbol: symbols![a.ticker] } : {}),
+          ...(newPrice  !== undefined ? { currentPrice:  newPrice  } : {}),
+          ...(newSymbol               ? { marketSymbol:  newSymbol } : {}),
         };
       }),
     }));
@@ -253,8 +253,8 @@ export function usePortfolio() {
       let weightedDays = 0, totalWeight = 0;
       state.assets.forEach(asset => {
         const amount = asset.shares * asset.buyPrice;
-        if ((asset as any).buyDate) {
-          const days = Math.max(1, (today.getTime() - new Date((asset as any).buyDate).getTime()) / 86400000);
+        if (asset.buyDate) {
+          const days = Math.max(1, (today.getTime() - new Date(asset.buyDate).getTime()) / 86400000);
           weightedDays += days * amount;
           totalWeight  += amount;
         }
@@ -316,7 +316,9 @@ export function usePortfolio() {
     const filteredRobos = (entity === 'all' || entity === 'Robo-Advisors') ? state.roboAdvisors : [];
     filteredRobos.forEach(r => {
       if (r.subFunds?.length) {
-        r.subFunds.forEach(sf => applyEntry(sf.isin ? isinMap.get(sf.isin.toUpperCase()) : undefined, r.totalValue * sf.weightPct / 100));
+        r.subFunds.forEach(sf =>
+          applyEntry(sf.isin ? isinMap.get(sf.isin.toUpperCase()) : undefined, r.totalValue * sf.weightPct / 100)
+        );
       } else {
         const td = r.threeDim;
         if (td?.geography?.length)    td.geography.forEach(g    => { geoTotals[g.name]    = (geoTotals[g.name]    || 0) + r.totalValue * g.weight / 100; });
@@ -355,7 +357,7 @@ export function usePortfolio() {
     distribution,
     getXrayByEntity,
     addAsset, removeAsset, updateAsset, updateAssetClassification, updateAssetThreeDim,
-    addMovement, removeMovement,           // ← NUEVO
+    addMovement, removeMovement,   // ← NUEVO: necesario para TransactionHistory
     addRoboAdvisor, updateRoboAdvisor, updateRoboThreeDim, updateRoboSubFunds, removeRoboAdvisor,
     setApiKey, setCashBalance, updatePrices,
     getByIsin, upsertIsin, updateIsinClassification, deleteIsin,
