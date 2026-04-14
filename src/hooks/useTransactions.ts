@@ -18,7 +18,8 @@ export function useTransactions() {
   const { user } = useAuth();
 
   const fetchTransactions = async (assetId?: string, roboAdvisorId?: string): Promise<Transaction[]> => {
-    if (!user) return [];
+    // Protección contra usuario no autenticado (evita error de null)
+    if (!user?.id) return [];
 
     try {
       let query = (supabase
@@ -51,7 +52,10 @@ export function useTransactions() {
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
-    if (!user) throw new Error('Usuario no autenticado');
+    if (!user?.id) {
+      toast.error('Debes iniciar sesión para añadir transacciones');
+      return null;
+    }
 
     try {
       const { data, error } = await (supabase
@@ -75,7 +79,7 @@ export function useTransactions() {
   };
 
   const updateTransaction = async (id: string, updates: Partial<Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
-    if (!user) throw new Error('Usuario no autenticado');
+    if (!user?.id) return null;
 
     try {
       const { data, error } = await (supabase
@@ -98,7 +102,7 @@ export function useTransactions() {
   };
 
   const deleteTransaction = async (id: string) => {
-    if (!user) throw new Error('Usuario no autenticado');
+    if (!user?.id) return;
 
     try {
       const { error } = await (supabase
