@@ -45,6 +45,29 @@ interface Options {
   onUpdatePrices: (prices: Record<string, number>, symbols: Record<string, string>) => void;
 }
 
+function getIsinCandidate(asset: Asset): string {
+  return (asset.isin || asset.ticker || '').trim().toUpperCase();
+}
+
+function getAlphaVantageError(data: any): string | null {
+  const note = (data?.Note || data?.Information || '').toString();
+  const hardError = (data?.['Error Message'] || '').toString();
+  if (hardError) return `Alpha Vantage: ${hardError}`;
+  if (!note) return null;
+
+  const lower = note.toLowerCase();
+  if (lower.includes('25 requests per day')) {
+    return 'Límite diario de Alpha Vantage alcanzado (25 solicitudes/día en plan gratis).';
+  }
+  if (lower.includes('5 calls per minute')) {
+    return 'Límite por minuto de Alpha Vantage alcanzado (5 solicitudes/min en plan gratis).';
+  }
+  if (lower.includes('api key') || lower.includes('invalid')) {
+    return 'API key inválida o no configurada correctamente en Alpha Vantage.';
+  }
+  return `Alpha Vantage respondió con restricción: ${note}`;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -61,7 +84,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       `&keywords=${encodeURIComponent(isin)}&apikey=${apiKey}`;
     const res  = await fetch(url);
     const data = await res.json();
-    if (data['Note'] || data['Information']) throw new Error('rate_limit');
+    const apiErr = getAlphaVantageError(data);
+    if (apiErr) throw new Error(apiErr);
     const matches = (data['bestMatches'] ?? []) as any[];
     if (!matches.length) return null;
     const pref = matches.find((m: any) =>
@@ -77,7 +101,8 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
       `&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
     const res  = await fetch(url);
     const data = await res.json();
-    if (data['Note'] || data['Information']) throw new Error('rate_limit');
+    const apiErr = getAlphaVantageError(data);
+    if (apiErr) throw new Error(apiErr);
     const price = parseFloat(data['Global Quote']?.['05. price'] ?? '');
     return isNaN(price) || price <= 0 ? null : price;
   };
@@ -160,9 +185,9 @@ export function usePriceUpdater({ apiKey, assets, onUpdatePrices }: Options): Us
             });
           }
         } catch (err: any) {
-          if (err.message === 'rate_limit') {
+          if ((err?.message || '').toLowerCase().includes('alpha vantage') || (err?.message || '').toLowerCase().includes('límite')) {
             rateLimitHit = true;
-            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: 'Límite de API alcanzado (25 req/día en plan gratuito). Espera un minuto.', ok: false });
+            results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: err.message, ok: false });
           } else {
             results.push({ assetId: asset.id, name, ticker: asset.ticker, reason: `Error de red: ${err.message}`, ok: false });
           }

@@ -24,7 +24,7 @@ interface Props {
   assetName: string;
   initial?: ThreeDimensionClassification;
   onSave: (td: ThreeDimensionClassification) => void;
-  onAutoClassify?: () => ThreeDimensionClassification | null;
+  onAutoClassify?: () => Promise<ThreeDimensionClassification | null> | ThreeDimensionClassification | null;
   children?: React.ReactNode;
 }
 
@@ -93,9 +93,11 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
     toast.success('Clasificación actualizada');
   };
 
-  const handleAutoClassify = () => {
+  const handleAutoClassify = async () => {
     if (!onAutoClassify) return;
-    const auto = onAutoClassify();
+    setAutoLoading(true);
+    const auto = await onAutoClassify();
+    setAutoLoading(false);
     if (!auto) {
       toast.error('No se pudo obtener clasificación automática');
       return;
@@ -121,7 +123,9 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
         {children}
         <DialogFooter>
           {onAutoClassify && (
-            <Button variant="secondary" onClick={handleAutoClassify}>Autoclasificar (API)</Button>
+            <Button variant="secondary" onClick={handleAutoClassify} disabled={autoLoading}>
+              {autoLoading ? 'Consultando API…' : 'Autoclasificar (API)'}
+            </Button>
           )}
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSave}>Guardar</Button>
