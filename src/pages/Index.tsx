@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useIsinLibrary } from '@/hooks/useIsinLibrary';
+import { useRoboConstituents } from '@/hooks/useRoboConstituents';
 import { Header } from '@/components/Header';
 import SummaryCards from '@/components/portfolio/SummaryCards';
 import AllocationChart from '@/components/portfolio/AllocationChart';
@@ -19,7 +20,8 @@ type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 
 export default function Index() {
   const p = usePortfolio();
-  const isinLib = useIsinLibrary();
+  const isinLib    = useIsinLibrary();
+  const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
   const mergedIsinLibrary = useMemo(() => {
@@ -69,7 +71,13 @@ export default function Index() {
       </div>
 
       <main className="container py-6 px-4 space-y-6">
-        <SummaryCards totalValue={p.summary.totalValue} totalPL={p.summary.totalPL} totalPLPercent={p.summary.totalPLPercent} dayChange={p.summary.dayChange} xirr={p.summary.xirr} />
+        <SummaryCards
+          totalValue={p.summary.totalValue}
+          totalPL={p.summary.totalPL}
+          totalPLPercent={p.summary.totalPLPercent}
+          dayChange={p.summary.dayChange}
+          xirr={p.summary.xirr}
+        />
 
         <Tabs defaultValue="dashboard" className="space-y-4">
           <TabsList className="bg-card border border-border/50 flex-wrap h-auto gap-1 p-1">
@@ -101,23 +109,23 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="fondos" className="space-y-4">
-             <FundsTable
-   assets={p.assets}
-   onAdd={p.addAsset}
-   onRemove={p.removeAsset}
-   onUpdate={p.updateAsset}
-   onUpdatePrices={p.updatePrices}   
-   apiKey={p.apiKey}                 
-   getByIsin={p.getByIsin}
-   upsertIsin={p.upsertIsin}
- />
+            {/* FIX: añadidas onUpdatePrices y apiKey — requeridas por FundsTable */}
+            <FundsTable
+              assets={p.assets}
+              onAdd={p.addAsset}
+              onRemove={p.removeAsset}
+              onUpdate={p.updateAsset}
+              onUpdatePrices={p.updatePrices}
+              apiKey={p.apiKey}
+              getByIsin={p.getByIsin}
+              upsertIsin={p.upsertIsin}
+            />
           </TabsContent>
 
           <TabsContent value="robos" className="space-y-4">
             <RoboImporter />
             <RoboAdvisors
               robos={p.roboAdvisors}
-              apiKey={p.apiKey}
               onAdd={p.addRoboAdvisor}
               onUpdate={p.updateRoboAdvisor}
               onRemove={p.removeRoboAdvisor}
@@ -130,8 +138,11 @@ export default function Index() {
               assets={p.assets}
               roboAdvisors={p.roboAdvisors}
               isinLibrary={mergedIsinLibrary}
+              roboConstituents={roboConsts.constituents}
               onUpdateIsinClassification={isinLib.updateIsinClassification}
+              onUpdateRoboSubFunds={p.updateRoboSubFunds}
               getByIsin={p.getByIsin}
+              upsertIsin={p.upsertIsin}
             />
           </TabsContent>
 
@@ -145,7 +156,14 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="settings">
-            <SettingsPanel apiKey={p.apiKey} cashBalance={p.cashBalance} assets={p.assets} onSetApiKey={p.setApiKey} onSetCash={p.setCashBalance} onUpdatePrices={p.updatePrices} />
+            <SettingsPanel
+              apiKey={p.apiKey}
+              cashBalance={p.cashBalance}
+              assets={p.assets}
+              onSetApiKey={p.setApiKey}
+              onSetCash={p.setCashBalance}
+              onUpdatePrices={p.updatePrices}
+            />
           </TabsContent>
         </Tabs>
       </main>
