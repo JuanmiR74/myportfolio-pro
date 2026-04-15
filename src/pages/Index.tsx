@@ -28,16 +28,16 @@ import IsinLibraryView from '@/components/portfolio/IsinLibraryView';
 type EntityFilter = 'all' | 'MyInvestor' | 'BBK' | 'Robo-Advisors';
 
 export default function Index() {
-  // 1. DECLARACIÓN DE TODOS LOS HOOKS (Siempre al principio)
+  // 1. DECLARACIÓN DE TODOS LOS HOOKS (Obligatorio al inicio del componente)
   const p = usePortfolio();
   const isinLib = useIsinLibrary();
   const roboConsts = useRoboConstituents();
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
 
   // Lógica de combinación de librería ISIN (Memorizada)
-  // Nota: Movida antes del IF para mantener el orden de Hooks constante
+  // Se mantiene arriba para que el Hook 'useMemo' se registre siempre en el mismo orden
   const mergedIsinLibrary = useMemo(() => {
-    // Si todavía está cargando, devolvemos un array vacío pero el Hook ya se registró
+    // Si todavía está cargando, devolvemos un array vacío para evitar errores de acceso
     if (p.loading) return [];
 
     const map = new Map<string, any>();
@@ -59,6 +59,7 @@ export default function Index() {
   }, [isinLib.entries, p.isinLibrary, p.loading]);
 
   // 2. COMPROBACIÓN DE CARGA (Después de declarar todos los Hooks)
+  // Esto protege a los componentes hijos de recibir datos 'undefined'
   if (p.loading) {
     return (
       <div className="dark min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4">
@@ -102,6 +103,7 @@ export default function Index() {
       </div>
 
       <main className="container py-6 px-4 space-y-6">
+        {/* Resumen de Valores - Datos provenientes de p.summary */}
         <SummaryCards
           totalValue={p.summary.totalValue}
           totalPL={p.summary.totalPL}
