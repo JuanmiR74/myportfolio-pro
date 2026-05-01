@@ -73,6 +73,7 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
   const [acp, setAcp] = useState<EditRow[]>(
     initial?.assetClassPro?.map(a => ({ name: a.name, weight: a.weight.toString() })) || [{ name: 'RV - Blend', weight: '100' }]
   );
+  const [autoLoading, setAutoLoading] = useState(false);
 
   const validate = (rows: EditRow[], label: string): WeightedItem[] | null => {
     const items = rows.filter(r => parseFloat(r.weight) > 0).map(r => ({ name: r.name, weight: parseFloat(r.weight) }));
@@ -134,4 +135,3 @@ export default function ThreeDimEditor({ open, onClose, assetName, initial, onSa
     </Dialog>
   );
 }
-  const [autoLoading, setAutoLoading] = useState(false);
