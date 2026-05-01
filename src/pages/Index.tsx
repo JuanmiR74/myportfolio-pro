@@ -162,6 +162,7 @@ export default function Index() {
             <RoboImporter />
             <RoboAdvisors
               robos={p.roboAdvisors}
+              apiKey={p.apiKey}
               onAdd={p.addRoboAdvisor}
               onUpdate={p.updateRoboAdvisor}
               onRemove={p.removeRoboAdvisor}
