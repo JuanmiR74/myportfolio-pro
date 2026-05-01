@@ -78,9 +78,9 @@ export const FUND_SECTOR_MAP: Record<string, {
   EMERGING: { allocations: [{ assetClass: 'Renta Variable', weight: 100 }],
               sectorAllocations: [{ sector: 'Emergentes', weight: 100 }] },
   JAPAN:    { allocations: [{ assetClass: 'Renta Variable', weight: 100 }],
-              sectorAllocations: [{ sector: 'Japón', weight: 100 }] },
+              sectorAllocations: [{ sector: 'Global', weight: 100 }] },
   PACIFIC:  { allocations: [{ assetClass: 'Renta Variable', weight: 100 }],
-              sectorAllocations: [{ sector: 'Asia-Pacífico', weight: 100 }] },
+              sectorAllocations: [{ sector: 'Global', weight: 100 }] },
   GLOBAL:   { allocations: [{ assetClass: 'Renta Variable', weight: 100 }],
               sectorAllocations: [
                 { sector: 'EEUU', weight: 50 },
